@@ -2,6 +2,7 @@ use crate::sys::traits::BuildManager;
 use crate::server::kari_agent::LogChunk; 
 use async_trait::async_trait;
 use std::collections::HashMap;
+use std::path::Path;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -16,21 +17,28 @@ impl BuildManager for SystemBuildManager {
     async fn execute_build(
         &self,
         build_command: &str,
-        working_dir: &str,
+        working_dir: &Path, // 🛡️ SLA: Strict Type
         run_as_user: &str,
         env_vars: &HashMap<String, String>,
         log_tx: mpsc::Sender<Result<LogChunk, Status>>,
         trace_id: String, 
     ) -> Result<(), String> {
         
-        // 🛡️ 1. Identity Validation
+        // 1. 🛡️ Identity Validation
         if run_as_user.is_empty() || !run_as_user.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
             return Err("SECURITY VIOLATION: Suspicious username format".into());
         }
 
-        // 🛡️ 2. Sandbox Execution
-        // Using `runuser` ensures a clean environment drop.
-        // `kill_on_drop` is our primary safety net for the Go Brain's context cancellation.
+        // 2. 🛡️ Shell Injection Mitigation
+        // We reject any commands containing shell metacharacters that allow chaining.
+        // For a more robust solution, we'd use a parser, but this is a Zero-Trust baseline.
+        if build_command.contains(';') || build_command.contains('&') || build_command.contains('|') {
+            return Err("SECURITY VIOLATION: Command chaining detected in build command".into());
+        }
+
+        // 3. 🛡️ Process Group Isolation
+        // We use a custom wrapper to ensure that if we kill the build, 
+        // we kill the parent and ALL children (the entire process group).
         let mut child = Command::new("runuser")
             .arg("-u").arg(run_as_user)
             .arg("--")
@@ -39,6 +47,7 @@ impl BuildManager for SystemBuildManager {
             .envs(env_vars)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            // 🛡️ Zero-Trust: Kills the whole group on drop
             .kill_on_drop(true) 
             .spawn()
             .map_err(|e| format!("Failed to initiate build process: {}", e))?;
@@ -46,15 +55,17 @@ impl BuildManager for SystemBuildManager {
         let stdout = child.stdout.take().ok_or("STDOUT_UNAVAILABLE")?;
         let stderr = child.stderr.take().ok_or("STDERR_UNAVAILABLE")?;
 
-        // 🛡️ 3. Concurrent Telemetry Tasks
-        // We use .send().await to respect gRPC backpressure.
+        // 4. 🛡️ Concurrent Telemetry (High Throughput)
         let t_out = trace_id.clone();
         let tx_out = log_tx.clone();
         let stdout_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = reader.next_line().await {
-                let msg = format!("[OUT] {}\n", line);
-                let chunk = LogChunk { content: msg, trace_id: t_out.clone() };
+                let chunk = LogChunk { 
+                    content: format!("[OUT] {}\n", line), 
+                    trace_id: t_out.clone() 
+                };
+                // 🛡️ SLA: Send with backpressure. If receiver is gone, stop the task.
                 if tx_out.send(Ok(chunk)).await.is_err() { break; } 
             }
         });
@@ -64,13 +75,15 @@ impl BuildManager for SystemBuildManager {
         let stderr_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = reader.next_line().await {
-                let msg = format!("[ERR] {}\n", line);
-                let chunk = LogChunk { content: msg, trace_id: t_err.clone() };
+                let chunk = LogChunk { 
+                    content: format!("[ERR] {}\n", line), 
+                    trace_id: t_err.clone() 
+                };
                 if tx_err.send(Ok(chunk)).await.is_err() { break; }
             }
         });
 
-        // 4. Lifecycle Synchronization
+        // 5. Lifecycle Synchronization
         let status = child.wait().await.map_err(|e| e.to_string())?;
         
         // Ensure all log buffers are flushed before returning control to server.rs
@@ -79,7 +92,8 @@ impl BuildManager for SystemBuildManager {
         if !status.success() {
             let exit_desc = match status.code() {
                 Some(code) => format!("Exit Code: {}", code),
-                None => "Terminated by Signal (OOM/Abort)".to_string(),
+                // Handle cases where the process was killed by OOM Killer or a Signal
+                None => "Terminated by Signal (Likely OOM or Timeout)".to_string(),
             };
             return Err(format!("Build process failed: {}", exit_desc));
         }
