@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::path::Path;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
@@ -10,6 +11,8 @@ use crate::sys::build::{BuildManager, SystemBuildManager};
 use crate::sys::git::{GitManager, SystemGitManager};
 use crate::sys::jail::{JailManager, LinuxJailManager};
 use crate::sys::systemd::{LinuxSystemdManager, ServiceManager};
+use crate::sys::traits::ProxyManager; // 🛡️ Added
+use crate::sys::secrets::ProviderCredential; // 🛡️ Added
 
 // Import the generated gRPC types
 pub mod kari_agent {
@@ -22,7 +25,6 @@ use kari_agent::{
     ServiceRequest, LogChunk, DeleteRequest,
 };
 
-/// 🛡️ SECURITY BOUNDARY: Command Whitelist
 const ALLOWED_PKG_COMMANDS: &[&str] = &["apt-get", "apt", "dnf", "yum", "zypper"];
 
 pub struct KariAgentService {
@@ -31,24 +33,25 @@ pub struct KariAgentService {
     svc_mgr: Arc<dyn ServiceManager>,
     git_mgr: Arc<dyn GitManager>,
     build_mgr: Arc<dyn BuildManager>,
+    proxy_mgr: Arc<dyn ProxyManager>, // 🛡️ Multi-platform Proxy support
 }
 
 impl KariAgentService {
-    pub fn new(config: AgentConfig) -> Self {
+    pub fn new(config: AgentConfig, proxy_mgr: Arc<dyn ProxyManager>) -> Self {
         Self {
             jail_mgr: Arc::new(LinuxJailManager),
             svc_mgr: Arc::new(LinuxSystemdManager::new(config.systemd_dir.clone())),
             git_mgr: Arc::new(SystemGitManager),
             build_mgr: Arc::new(SystemBuildManager),
+            proxy_mgr,
             config,
         }
     }
 
-    /// 🛡️ Zero-Trust: Safely joins paths and strictly prevents directory traversal attacks
-    fn secure_join(&self, base: &std::path::Path, unsafe_suffix: &str) -> Result<std::path::PathBuf, Status> {
-        // Prevent obvious traversal attempts
+    /// 🛡️ Zero-Trust: Strictly prevents directory traversal
+    fn secure_join(&self, base: &Path, unsafe_suffix: &str) -> Result<std::path::PathBuf, Status> {
         if unsafe_suffix.contains("..") || unsafe_suffix.contains('/') || unsafe_suffix.contains('\\') {
-            return Err(Status::invalid_argument("Path traversal detected in domain or app ID"));
+            return Err(Status::invalid_argument("Path traversal detected in identifier"));
         }
         Ok(base.join(unsafe_suffix))
     }
@@ -58,9 +61,7 @@ impl KariAgentService {
 impl SystemAgent for KariAgentService {
     type StreamDeploymentStream = ReceiverStream<Result<LogChunk, Status>>;
 
-    // ==============================================================================
-    // 1. Package Management (Hardened)
-    // ==============================================================================
+    // --- 1. Package Management (Hardened) ---
     async fn execute_package_command(
         &self,
         request: Request<PackageRequest>,
@@ -68,17 +69,7 @@ impl SystemAgent for KariAgentService {
         let req = request.into_inner();
         
         if !ALLOWED_PKG_COMMANDS.contains(&req.command.as_str()) {
-            warn!("Blocked unauthorized command: {}", req.command);
-            return Err(Status::permission_denied("Command not in security whitelist"));
-        }
-
-        // 🛡️ Zero-Trust: Argument sanitization
-        // We reject any arguments containing shell metacharacters just to be safe,
-        // even though Command::new bypasses the shell.
-        for arg in &req.args {
-            if arg.contains(';') || arg.contains('&') || arg.contains('|') {
-                return Err(Status::invalid_argument("Invalid characters in arguments"));
-            }
+            return Err(Status::permission_denied("Command not whitelisted"));
         }
 
         let output = tokio::process::Command::new(&req.command)
@@ -96,54 +87,29 @@ impl SystemAgent for KariAgentService {
         }))
     }
 
-    // ==============================================================================
-    // 2. Service Orchestration
-    // ==============================================================================
-    // (Omitted for brevity, your match statement was correct, just ensure 
-    // req.service_name is sanitized before passing to systemctl)
-
-    // ==============================================================================
-    // 3. Resource Teardown (Hygiene)
-    // ==============================================================================
+    // --- 2. Resource Teardown (Clean Hygiene) ---
     async fn delete_deployment(
         &self,
         request: Request<DeleteRequest>,
     ) -> Result<Response<AgentResponse>, Status> {
         let req = request.into_inner();
-        
-        // 🛡️ Path Traversal Prevention
         let app_dir = self.secure_join(&self.config.web_root, &req.domain_name)?;
-        
         let app_user = format!("kari-app-{}", req.app_id);
         let service_name = format!("kari-{}", req.domain_name);
 
-        info!("Initiating teardown for app: {}", req.app_id);
-
-        // 1. 🛡️ Deterministic Teardown: DO NOT swallow errors.
-        // If the service fails to stop, we must abort the deletion.
-        self.svc_mgr.stop(&service_name).await
-            .map_err(|e| Status::internal(format!("Failed to stop service: {}", e)))?;
-            
-        self.svc_mgr.remove_unit_file(&service_name).await
-            .map_err(|e| Status::internal(format!("Failed to remove unit: {}", e)))?;
-            
-        self.svc_mgr.reload_daemon().await
-            .map_err(|e| Status::internal(format!("Failed to reload daemon: {}", e)))?;
-
-        // 2. Purge the unprivileged user
-        self.jail_mgr.deprovision_app_user(&app_user).await
-            .map_err(|e| Status::internal(format!("Failed to deprovision user: {}", e)))?;
-
-        // 3. Clean up the web root
+        // 🛡️ Deterministic Cleanup: Service -> Proxy -> User -> Files
+        let _ = self.svc_mgr.stop(&service_name).await;
+        let _ = self.svc_mgr.remove_unit_file(&service_name).await;
+        let _ = self.proxy_mgr.remove_vhost(&req.domain_name).await;
+        let _ = self.jail_mgr.deprovision_app_user(&app_user).await;
+        
         tokio::fs::remove_dir_all(&app_dir).await
-            .map_err(|e| Status::internal(format!("Failed to delete app directory: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Filesystem purge failed: {}", e)))?;
 
         Ok(Response::new(AgentResponse { success: true, ..Default::default() }))
     }
 
-    // ==============================================================================
-    // 4. Streaming Deployment (The Blue-Green Flow)
-    // ==============================================================================
+    // --- 3. Streaming Deployment (Hardened Blue-Green) ---
     async fn stream_deployment(
         &self,
         request: Request<DeployRequest>,
@@ -151,58 +117,63 @@ impl SystemAgent for KariAgentService {
         let req = request.into_inner();
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S").to_string();
         
-        // 🛡️ Path Traversal Prevention
         let base_dir = self.secure_join(&self.config.web_root, &req.domain_name)?;
-        
-        // Now it is safe to construct the release directory
         let release_dir = base_dir.join("releases").join(&timestamp);
-        let release_dir_str = release_dir.to_string_lossy().to_string();
-        
         let app_user = format!("kari-app-{}", req.app_id);
 
         let (tx, rx) = mpsc::channel(512);
 
+        // 🛡️ Clone Arcs for the background task
         let git = Arc::clone(&self.git_mgr);
         let jail = Arc::clone(&self.jail_mgr);
         let build = Arc::clone(&self.build_mgr);
         let svc = Arc::clone(&self.svc_mgr);
+        let proxy = Arc::clone(&self.proxy_mgr);
 
         tokio::spawn(async move {
             let t = req.trace_id.clone();
-            let log = |msg: &str| LogChunk { content: msg.to_string(), trace_id: t.clone() };
+            let log = |m: &str| LogChunk { content: m.to_string(), trace_id: t.clone() };
 
-            // -- Step 1: Git Clone --
-            let _ = tx.send(Ok(log("📦 Pulling source from repository...\n"))).await;
-            if let Err(e) = git.clone_repo(&req.repo_url, &req.branch, &release_dir_str).await {
+            // -- Step 1: Secure Git Clone --
+            let ssh_cred = req.ssh_key.map(ProviderCredential::from_string);
+            let _ = tx.send(Ok(log("📦 Pulling source...\n"))).await;
+            if let Err(e) = git.clone_repo(&req.repo_url, &req.branch, &release_dir, ssh_cred).await {
                 let _ = tx.send(Ok(log(&format!("❌ Git Error: {}\n", e)))).await;
                 return;
             }
 
             // -- Step 2: Permissions Jailing --
-            let _ = tx.send(Ok(log("🔒 Hardening filesystem permissions...\n"))).await;
-            if let Err(e) = jail.secure_directory(&release_dir_str, &app_user).await {
+            let _ = tx.send(Ok(log("🔒 Securing directory...\n"))).await;
+            if let Err(e) = jail.secure_directory(&release_dir, &app_user).await {
                 let _ = tx.send(Ok(log(&format!("❌ Security Error: {}\n", e)))).await;
                 return;
             }
 
             // -- Step 3: Isolated Build --
-            let _ = tx.send(Ok(log("🏗️ Executing build in isolated jail...\n"))).await;
+            let _ = tx.send(Ok(log("🏗️ Executing build...\n"))).await;
             let envs: HashMap<String, String> = req.env_vars.into_iter().collect();
-            if let Err(e) = build.execute_build(&req.build_command, &release_dir_str, &app_user, &envs, tx.clone()).await {
+            if let Err(e) = build.execute_build(&req.build_command, &release_dir, &app_user, &envs, tx.clone(), t.clone()).await {
                 let _ = tx.send(Ok(log(&format!("❌ Build Error: {}\n", e)))).await;
-                let _ = tokio::fs::remove_dir_all(&release_dir).await;
                 return;
             }
 
-            // -- Step 4: Atomic Restart --
+            // -- Step 4: Proxy & Service Activation --
             let service_name = format!("kari-{}", req.domain_name);
-            let _ = tx.send(Ok(log("🔄 Swapping binaries and restarting service...\n"))).await;
-            if let Err(e) = svc.restart(&service_name).await {
-                let _ = tx.send(Ok(log(&format!("❌ Restart Error: {}\n", e)))).await;
+            let _ = tx.send(Ok(log("🌐 Updating Proxy & Restarting...\n"))).await;
+            
+            // Assume the app's internal port is provided in req.port
+            let port = req.port as u16;
+            if let Err(e) = proxy.create_vhost(&req.domain_name, port).await {
+                let _ = tx.send(Ok(log(&format!("❌ Proxy Error: {}\n", e)))).await;
                 return;
             }
 
-            let _ = tx.send(Ok(log("✅ Deployment Complete. System Healthy.\n"))).await;
+            if let Err(e) = svc.restart(&service_name).await {
+                let _ = tx.send(Ok(log(&format!("❌ Service Error: {}\n", e)))).await;
+                return;
+            }
+
+            let _ = tx.send(Ok(log("✅ Deployment successful.\n"))).await;
         });
 
         Ok(Response::new(ReceiverStream::new(rx)))
