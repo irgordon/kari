@@ -1,96 +1,124 @@
-package handlers
+package http
 
 import (
-	"context"
+	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
+	"kari/api/internal/core/domain"
 	"kari/api/internal/core/services"
+	"kari/api/internal/telemetry"
 	"kari/api/internal/api/middleware"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 4096, // Larger buffer for log-heavy builds
-	CheckOrigin: func(r *http.Request) bool {
-		// 🛡️ Zero-Trust: In production, strictly match the SvelteKit URL
-		// For now, we'll allow cross-origin but enforce auth via context
-		return true 
-	},
-}
-
 type DeploymentHandler struct {
-	appService *services.ApplicationService
+	repo   domain.DeploymentRepository
+	crypto services.CryptoService
+	hub    *telemetry.Hub
 }
 
-func NewDeploymentHandler(svc *services.ApplicationService) *DeploymentHandler {
-	return &DeploymentHandler{appService: svc}
+func NewDeploymentHandler(repo domain.DeploymentRepository, crypto services.CryptoService, hub *telemetry.Hub) *DeploymentHandler {
+	return &DeploymentHandler{
+		repo:   repo,
+		crypto: crypto,
+		hub:    hub,
+	}
 }
 
-// StreamLogs handles the WebSocket upgrade and pipes the service channel to the client
-func (h *DeploymentHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
-	// 1. Extract IDs and Context
-	appIDStr := chi.URLParam(r, "id")
-	appID, err := uuid.Parse(appIDStr)
-	if err != nil {
-		http.Error(w, "Invalid Application ID", http.StatusBadRequest)
+// CreateDeployment handles the initial POST request from the SvelteKit Wizard
+func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name         string `json:"name"`
+		RepoURL      string `json:"repo_url"`
+		Branch       string `json:"branch"`
+		BuildCommand string `json:"build_command"`
+		TargetPort   int    `json:"target_port"`
+		SSHKey       string `json:"ssh_key"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Malformed request body", http.StatusBadRequest)
 		return
 	}
 
-	// 🛡️ SLA: Extract UserID from the RBAC Middleware context
+	// 🛡️ Zero-Trust: Identify the requesting user
 	userID, ok := r.Context().Value(middleware.UserKey).(uuid.UUID)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// 2. Upgrade to WebSocket
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return // Upgrade handles its own error response
+	// 🛡️ Cryptography: Encrypt the SSH Key before it hits the DB
+	// We generate a temporary AppID or use an existing one to bind the AAD
+	appID := uuid.New().String()
+	var encryptedKey string
+	if req.SSHKey != "" {
+		enc, err := h.crypto.Encrypt(r.Context(), []byte(req.SSHKey), []byte(appID))
+		if err != nil {
+			http.Error(w, "Internal security error", http.StatusInternalServerError)
+			return
+		}
+		encryptedKey = enc
 	}
-	defer conn.Close()
 
-	// 3. Trigger Service Orchestration
-	// We pass the request context so that if the WS disconnects, the gRPC call cancels.
-	logChan, err := h.appService.Deploy(r.Context(), appID, userID)
-	if err != nil {
-		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
+	// 🛡️ SLA: Persist the task as PENDING for the Worker to claim
+	deployment := &domain.Deployment{
+		ID:               uuid.New().String(),
+		AppID:            appID,
+		DomainName:       req.Name,
+		RepoURL:          req.RepoURL,
+		Branch:           req.Branch,
+		BuildCommand:     req.BuildCommand,
+		TargetPort:       req.TargetPort,
+		EncryptedSSHKey:  encryptedKey,
+		Status:           domain.StatusPending,
+	}
+
+	if err := h.repo.Save(r.Context(), deployment); err != nil {
+		http.Error(w, "Failed to queue deployment", http.StatusInternalServerError)
 		return
 	}
 
-	// 🛡️ 4. The Pipe Loop (Memory-Safe)
-	// We use a "Ping-Pong" heartbeat to detect stale connections.
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+	// Return the TraceID so the frontend can immediately subscribe to logs
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"trace_id": deployment.ID,
+		"status":   "queued",
+	})
+}
+
+// StreamLogs replaces the WebSocket implementation with SSE
+func (h *DeploymentHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
+	deploymentID := chi.URLParam(r, "id")
+	if _, err := uuid.Parse(deploymentID); err != nil {
+		http.Error(w, "Invalid deployment ID", http.StatusBadRequest)
+		return
+	}
+
+	// 🛡️ SLA: Establish SSE connection
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	// Subscribe to the Hub (broadcast from Worker)
+	logChan := h.hub.Subscribe(deploymentID)
+	defer h.hub.Unsubscribe(deploymentID, logChan)
+
+	rc := http.NewResponseController(w)
+	fmt.Fprintf(w, "event: connected\ndata: {\"status\": \"monitoring\"}\n\n")
+	rc.Flush()
 
 	for {
 		select {
-		case logLine, ok := <-logChan:
-			if !ok {
-				// Service closed the channel (Build Finished)
-				_ = conn.WriteMessage(websocket.TextMessage, []byte("🏗️ BUILD_COMPLETE"))
-				return
-			}
-
-			// Write the log line to xterm.js
-			err := conn.WriteMessage(websocket.TextMessage, []byte(logLine))
-			if err != nil {
-				return // Client disconnected
-			}
-
-		case <-ticker.C:
-			// Send heartbeat to keep the connection alive through Nginx proxy
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
-			}
-
 		case <-r.Context().Done():
-			// 🛡️ Zero-Waste: If the user leaves, the gRPC context is cancelled automatically.
 			return
+		case msg := <-logChan:
+			// 🛡️ Logic: Format message as data chunk
+			fmt.Fprintf(w, "data: %s\n\n", msg)
+			if err := rc.Flush(); err != nil {
+				return
+			}
 		}
 	}
 }
