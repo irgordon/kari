@@ -1,15 +1,32 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
+	"time"
 )
 
 func main() {
-	// Points to the internal port of the Brain
-	resp, err := http.Get("http://localhost:8080/health")
-	if err != nil || resp.StatusCode != http.StatusOK {
-		os.Exit(1) // Docker marks as UNHEALTHY
+	// 🛡️ Zero-Trust: Tight timeout to prevent hanging health checks
+	client := http.Client{
+		Timeout: 2 * time.Second,
 	}
-	os.Exit(0) // Docker marks as HEALTHY
+
+	// Internal health endpoint on the Brain
+	resp, err := client.Get("http://localhost:8080/health")
+	
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Healthcheck failed: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "Healthcheck failed: Received status %d\n", resp.StatusCode)
+		os.Exit(1)
+	}
+
+	// System is Operational
+	os.Exit(0)
 }
