@@ -1,0 +1,39 @@
+# .air.toml
+# Config for the Karı Go Brain (The Orchestrator)
+
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "api/bin"
+
+[build]
+  # Build the binary into the api/bin folder
+  cmd = "go build -o ./api/bin/main ./api/cmd/kari-api/main.go"
+  # Binary executable path
+  bin = "api/bin/main"
+  # Watch these extensions
+  include_ext = ["go", "tpl", "tmpl", "html", "proto"]
+  # Ignore these directories for security and stability
+  # We strictly ignore frontend and agent to prevent cross-component rebuild loops
+  exclude_dir = ["frontend", "agent", "api/bin", "vendor", "node_modules", ".svelte-kit"]
+  # Watch these specific directories
+  include_dir = ["api", "internal", "proto"]
+  # Delay to prevent rapid-fire rebuilds during multi-file saves
+  delay = 1000
+  # Stop the old process before starting the new one (Prevents port collisions)
+  stop_on_error = true
+  # Send a SIGTERM to allow for the graceful shutdown logic we wrote in main.go
+  kill_delay = "500ms"
+  send_interrupt = true
+
+[log]
+  time = true
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  # Clean up the binary on exit
+  clean_on_exit = true
