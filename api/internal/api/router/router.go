@@ -33,22 +33,16 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	// 1. Global Gateway Middleware Pipeline
 	// =========================================================================
 
-	// Injects a unique trace_id into every request context for logging and audit trails
 	r.Use(middleware.RequestID)
-	
-	// Extracts the true client IP (respecting X-Forwarded-For if behind a load balancer)
 	r.Use(middleware.RealIP)
-	
-	// Structured JSON logging for every HTTP request
 	r.Use(auth_middleware.StructuredLogger(cfg.Logger))
-	
-	// Catches panic() in any handler and returns a 500 error instead of crashing the Go daemon
 	r.Use(middleware.Recoverer)
-	
-	// Failsafe: No HTTP request is allowed to hang for more than 60 seconds
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	// In-memory token bucket rate limiting
+	// 🛡️ Limit all incoming JSON requests to 1 Megabyte max (OOM Protection)
+	r.Use(auth_middleware.MaxBytes(1_048_576))
+
+	// 🛡️ In-memory token bucket rate limiting
 	r.Use(auth_middleware.RateLimitMiddleware)
 
 	// 🔒 Force all connections to use TLS/SSL and inject HSTS headers
@@ -58,10 +52,10 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"https://*", "http://localhost:5173"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Hub-Signature-256", "X-GitHub-Event"},
 		ExposedHeaders:   []string{"Link", "Set-Cookie"},
 		AllowCredentials: true,
-		MaxAge:           300, 
+		MaxAge:           300,
 	}))
 
 	// =========================================================================
@@ -76,7 +70,9 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		r.Group(func(r chi.Router) {
 			r.Post("/auth/login", cfg.AuthHandler.Login)
 			r.Post("/auth/refresh", cfg.AuthHandler.Refresh)
-			r.Post("/webhooks/github", cfg.AppHandler.HandleGitHubWebhook)
+			
+			// Webhook now takes an {id} to isolate database lookups
+			r.Post("/webhooks/github/{id}", cfg.AppHandler.HandleGitHubWebhook)
 		})
 
 		// ---------------------------------------------------------------------
@@ -131,7 +127,6 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		})
 	})
 
-	// Health Check / Ping Endpoint for Uptime Monitors (e.g., Uptime Kuma)
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("pong"))
