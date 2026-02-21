@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -13,8 +14,8 @@ import (
 type contextKey string
 
 const (
-	UserKey  contextKey = "user_id"
-	RoleKey  contextKey = "role_rank"
+	UserKey contextKey = "user_id"
+	RoleKey contextKey = "role_rank"
 )
 
 type RBACMiddleware struct {
@@ -29,52 +30,38 @@ func NewRBACMiddleware(repo domain.UserRepository, secret string) *RBACMiddlewar
 	}
 }
 
-// Authenticate verifies the JWT and injects the UserID into the context
 func (m *RBACMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 1. Extract Token from Authorization Header or HttpOnly Cookie
-		authHeader := r.Header.Get("Authorization")
-		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-
-		if tokenStr == "" {
-			// Fallback to cookie for SvelteKit SSR requests
-			if cookie, err := r.Cookie("access_token"); err == nil {
-				tokenStr = cookie.Value
-			}
-		}
+		tokenStr := m.extractToken(r)
 
 		if tokenStr == "" {
 			http.Error(w, "Authentication required", http.StatusUnauthorized)
 			return
 		}
 
-		// 2. Parse and Validate JWT
 		claims := &jwt.RegisteredClaims{}
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
 			return m.jwtSecret, nil
 		})
 
 		if err != nil || !token.Valid {
-			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+			http.Error(w, "Invalid session", http.StatusUnauthorized)
 			return
 		}
 
 		userID, err := uuid.Parse(claims.Subject)
 		if err != nil {
-			http.Error(w, "Malformed token subject", http.StatusUnauthorized)
+			http.Error(w, "Malformed subject", http.StatusUnauthorized)
 			return
 		}
 
-		// 🛡️ 3. Real-time Security Check (Database Verification)
-		// We verify the user is still 'active' in the DB to prevent 
-		// "Ghost Access" from revoked accounts with long-lived tokens.
+		// 🛡️ Zero-Trust: Real-time DB check with eager loading of Role
 		user, err := m.repo.GetByID(r.Context(), userID)
 		if err != nil || !user.IsActive {
-			http.Error(w, "User account is suspended or removed", http.StatusForbidden)
+			http.Error(w, "Account inactive", http.StatusForbidden)
 			return
 		}
 
-		// 4. Inject into Context
 		ctx := context.WithValue(r.Context(), UserKey, user.ID)
 		ctx = context.WithValue(ctx, RoleKey, user.Role.Rank)
 
@@ -82,21 +69,38 @@ func (m *RBACMiddleware) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
-// RequirePermission ensures the user's role has the specific right for the resource
-func (m *RBACMiddleware) RequirePermission(resource string, action string) func(http.Handler) http.Handler {
+func (m *RBACMiddleware) RequirePermission(resource, action string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userID := r.Context().Value(UserKey).(uuid.UUID)
+			// 🛡️ Safe context retrieval
+			val := r.Context().Value(UserKey)
+			if val == nil {
+				http.Error(w, "Identity context missing", http.StatusInternalServerError)
+				return
+			}
+			userID := val.(uuid.UUID)
 
-			// 🛡️ 5. SLA Enforcement: Consult the Dynamic RBAC Store
-			// We check if the role assigned to this user in the DB has the required permission.
+			// Consult the Dynamic RBAC Store
 			hasPerm, err := m.repo.HasPermission(r.Context(), userID, resource, action)
 			if err != nil || !hasPerm {
-				http.Error(w, "Insufficient permissions for this action", http.StatusForbidden)
+				http.Error(w, "Forbidden", http.StatusForbidden)
 				return
 			}
 
 			next.ServeHTTP(w, r)
 		})
-	})
+	}
+}
+
+// 🛡️ Platform Agnostic Token Extraction
+func (m *RBACMiddleware) extractToken(r *http.Request) string {
+	// 1. Check Authorization Header (CLI/Patty flow)
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimPrefix(auth, "Bearer ")
+	}
+	// 2. Check Cookie (SvelteKit flow) - Standardized name
+	if cookie, err := r.Cookie("kari_access_token"); err == nil {
+		return cookie.Value
+	}
+	return ""
 }
