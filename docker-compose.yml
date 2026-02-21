@@ -9,7 +9,6 @@ services:
       POSTGRES_USER: kari_admin
       POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password_only}
       POSTGRES_DB: kari
-    # 🛡️ Zero-Trust: Database is physically unreachable from the host machine
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./api/internal/db/migrations:/docker-entrypoint-initdb.d
@@ -29,16 +28,14 @@ services:
       context: .
       dockerfile: agent/Dockerfile.dev
     container_name: kari-agent
-    privileged: true # Required for systemd/cgroup management & user provisioning
+    privileged: true 
     environment:
-      # 🛡️ Peer Credential Guard: The UID the Go API will run as
       - KARI_EXPECTED_API_UID=1001 
       - KARI_WEB_ROOT=/var/www/kari
       - KARI_SYSTEMD_DIR=/etc/systemd/system
       - RUST_LOG=info
     volumes:
       - kari_run:/var/run/kari
-      # 🛡️ Mocking the multi-platform proxy root
       - ./dev_root/etc/nginx:/etc/nginx
       - ./dev_root/etc/apache2:/etc/apache2
       - ./dev_root/var/www/kari:/var/www/kari
@@ -48,7 +45,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G # Prevents runaway build processes from freezing the host
+          memory: 1G
 
   # ============================================================================
   # 🧠 The Brain: Go API
@@ -58,7 +55,6 @@ services:
       context: .
       dockerfile: api/Dockerfile.dev
     container_name: kari-api
-    # 🛡️ Zero-Trust: Force the container to run as the exact UID the Agent expects
     user: "1001:1001"
     depends_on:
       db:
@@ -68,14 +64,20 @@ services:
     environment:
       DATABASE_URL: postgres://kari_admin:${DB_PASSWORD:-dev_password_only}@db:5432/kari?sslmode=disable
       JWT_SECRET: ${JWT_SECRET:-dev_secret_for_testing_only}
-      # 🛡️ 256-bit Hex Key for AES-GCM (Must be 64 characters)
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
       PORT: "8080"
       AGENT_SOCKET: /var/run/kari/agent.sock
+    # 🛡️ SLA: Custom Healthcheck verifying Brain <-> Muscle connectivity
+    healthcheck:
+      test: ["CMD", "/app/healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     ports:
       - "8080:8080"
     volumes:
-      - kari_run:/var/run/kari # Shared Unix Socket Volume
+      - kari_run:/var/run/kari 
     networks:
       - backplane
       - frontend-net
@@ -89,26 +91,23 @@ services:
       dockerfile: Dockerfile.dev
     container_name: kari-ui
     environment:
-      # 🛡️ SLA: Internal DNS for server-side calls, localhost for client-side HMR
       INTERNAL_API_URL: http://api:8080
       PUBLIC_API_URL: http://localhost:8080
-      JWT_SECRET: ${JWT_SECRET:-dev_secret_for_testing_only} # For edge verification
+      JWT_SECRET: ${JWT_SECRET:-dev_secret_for_testing_only}
     ports:
       - "5173:5173"
     networks:
       - frontend-net
     depends_on:
-      - api
+      api:
+        condition: service_healthy # 🛡️ UI only starts once Brain <-> Muscle is verified
 
 networks:
-  # 🛡️ Isolated Backplane: No external ingress/egress
   backplane:
     internal: true
-  # 🛡️ Frontend Bridge: Only UI and API are exposed
   frontend-net:
     driver: bridge
 
 volumes:
   postgres_data:
-  # 🛡️ Use a tmpfs for the socket if supported, otherwise standard volume
   kari_run:
