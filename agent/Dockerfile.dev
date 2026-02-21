@@ -1,0 +1,51 @@
+# Stage 1: Cargo Chef - The Dependency Caching Engine
+FROM rust:1.75-slim-bookworm AS chef
+RUN cargo install cargo-chef
+WORKDIR /app
+
+# Install system-level build dependencies for gRPC and ProtoBuf
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    protobuf-compiler \
+    libprotobuf-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Stage 2: Planner - Prepare the recipe
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Stage 3: Builder - The Muscle Factory
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+# Build dependencies - this layer is cached unless Cargo.toml changes
+RUN cargo chef cook --recipe-path recipe.json
+
+# Now copy the actual source and build the agent
+COPY . .
+RUN cargo build
+
+# Stage 4: Runtime - The Execution Environment
+# We use a slim Debian base to mirror a production Linux server environment
+FROM debian:bookworm-slim AS runtime
+WORKDIR /app
+
+# Install runtime dependencies (OpenSSL is required for our SslEngine)
+RUN apt-get update && apt-get install -y \
+    openssl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the compiled binary from the builder
+COPY --from=builder /app/target/debug/kari-agent /usr/local/bin/kari-agent
+
+# Environment Agnosticism: Ensure the agent knows where to place the socket
+ENV KARI_SOCKET_PATH=/var/run/kari/agent.sock
+ENV KARI_SSL_DIR=/etc/kari/ssl
+
+# The Agent requires root to manage systemd and users
+USER root
+
+# Run the agent
+CMD ["kari-agent"]
