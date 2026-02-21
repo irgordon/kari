@@ -1,16 +1,17 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use tokio::fs;
 use tokio::process::Command;
 
+// 🛡️ SLA: Domain Intent mapped to Rust Execution
 pub struct ServiceConfig {
     pub service_name: String,
     pub username: String,
-    pub working_directory: String,
+    pub working_directory: PathBuf, // 🛡️ SLA: Strict Type
     pub start_command: String,
     pub env_vars: HashMap<String, String>,
-    // 🛡️ Added dynamic limits from SystemProfile
     pub memory_limit_mb: i32,
     pub cpu_limit_percent: i32,
 }
@@ -27,12 +28,22 @@ pub trait ServiceManager: Send + Sync {
 }
 
 pub struct LinuxSystemdManager {
-    systemd_dir: String,
+    systemd_dir: PathBuf,
 }
 
 impl LinuxSystemdManager {
-    pub fn new(systemd_dir: String) -> Self {
+    pub fn new(systemd_dir: PathBuf) -> Self {
         Self { systemd_dir }
+    }
+
+    /// 🛡️ Zero-Trust: Safely joins paths to prevent unit file hijacking
+    fn get_unit_path(&self, service_name: &str) -> Result<PathBuf, String> {
+        // Prevent path traversal attacks (e.g. "../../../etc/shadow")
+        if service_name.contains("..") || service_name.contains('/') {
+            return Err("SECURITY VIOLATION: Path traversal in service name".into());
+        }
+        // Force the .service extension so they can't overwrite arbitrary system files
+        Ok(self.systemd_dir.join(format!("{}.service", service_name)))
     }
 
     async fn execute_systemctl(&self, args: &[&str]) -> Result<(), String> {
@@ -53,14 +64,21 @@ impl LinuxSystemdManager {
 #[async_trait]
 impl ServiceManager for LinuxSystemdManager {
     async fn write_unit_file(&self, config: &ServiceConfig) -> Result<(), String> {
-        let path = format!("{}/{}.service", self.systemd_dir, config.service_name);
+        let path = self.get_unit_path(&config.service_name)?;
         
-        // 🛡️ Secure Environment Block Generation
+        // 1. 🛡️ Secure Environment Block Generation (Strict POSIX Validation)
         let mut env_block = String::new();
         for (k, v) in &config.env_vars {
-            let safe_k = k.replace(['\n', '='], ""); 
-            let safe_v = v.replace('\n', "").replace('"', "\\\"");
-            env_block.push_str(&format!("Environment=\"{}={}\"\n", safe_k, safe_v));
+            // Keys MUST be strictly alphanumeric and underscores.
+            // This prevents systemd directive injection via malicious keys.
+            if !k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                tracing::warn!("Dropping invalid environment variable key: {}", k);
+                continue;
+            }
+            
+            // Values: Escape double quotes and backslashes for safe systemd parsing
+            let safe_v = v.replace('\\', "\\\\").replace('"', "\\\"");
+            env_block.push_str(&format!("Environment=\"{}={}\"\n", k, safe_v));
         }
 
         let unit_content = format!(
@@ -85,9 +103,9 @@ MemoryAccounting=true
 MemoryMax={mem_limit}M
 TasksMax=512
 
-# --- 🛡️ Hardened Sandbox ---
+# --- 🛡️ Hardened Sandbox (2026 Grade) ---
 NoNewPrivileges=true
-ProtectSystem=full
+ProtectSystem=strict
 PrivateTmp=true
 ProtectHome=true
 PrivateDevices=true
@@ -97,22 +115,25 @@ ProtectControlGroups=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 CapabilityBoundingSet=
 RestrictRealtime=true
+RestrictSUIDSGID=true
+ReadWritePaths={workdir}
 
 [Install]
 WantedBy=multi-user.target
 "#,
             service_name = config.service_name,
             username = config.username,
-            workdir = config.working_directory,
-            exec_start = config.start_command,
+            workdir = config.working_directory.to_string_lossy(),
+            exec_start = config.start_command, // Trusted via upstream validation
             env_block = env_block,
             cpu_limit = config.cpu_limit_percent,
             mem_limit = config.memory_limit_mb
         );
 
+        // Write the file to disk
         fs::write(&path, unit_content).await.map_err(|e| e.to_string())?;
         
-        // Ensure standard 644 permissions using native nix/fs
+        // 2. 🛡️ Ensure standard 644 permissions (rw-r--r--)
         let mut perms = fs::metadata(&path).await.map_err(|e| e.to_string())?.permissions();
         perms.set_mode(0o644);
         fs::set_permissions(&path, perms).await.map_err(|e| e.to_string())?;
@@ -121,9 +142,9 @@ WantedBy=multi-user.target
     }
 
     async fn remove_unit_file(&self, service_name: &str) -> Result<(), String> {
-        let path = format!("{}/{}.service", self.systemd_dir, service_name);
-        if std::path::Path::new(&path).exists() {
-            fs::remove_file(path).await.map_err(|e| format!("Cleanup failed: {}", e))?;
+        let path = self.get_unit_path(service_name)?;
+        if path.exists() {
+            fs::remove_file(&path).await.map_err(|e| format!("Cleanup failed: {}", e))?;
         }
         Ok(())
     }
