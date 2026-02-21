@@ -62,14 +62,17 @@ BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 -- DOMAINS Table: Tracks virtual host state
 -- Hardened: Added check constraint for ssl_status to allow zero-downtime updates
 CREATE TABLE domains (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    domain_name VARCHAR(255) UNIQUE NOT NULL,
-    ssl_status VARCHAR(50) NOT NULL DEFAULT 'none' 
-        CHECK (ssl_status IN ('none', 'active', 'failed', 'renewing')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY,
+    app_id UUID REFERENCES applications(id) ON DELETE CASCADE,
+    name TEXT UNIQUE NOT NULL, -- 🛡️ Enforcement: No two apps can share a domain
+    status TEXT NOT NULL CHECK (status IN ('provisioning', 'active', 'failed', 'deleting')),
+    target_port INTEGER NOT NULL CHECK (target_port > 0 AND target_port <= 65535),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
+
+-- 🛡️ Performance: Index for fast lookups during deployment routing
+CREATE INDEX idx_domains_app_id ON domains(app_id);
 
 CREATE INDEX idx_domains_user_id ON domains(user_id);
 CREATE TRIGGER set_timestamp_domains
