@@ -9,11 +9,12 @@ import (
 	"kari/api/internal/core/domain"
 )
 
-// 🛡️ Custom Claims containing our business logic
+// KariClaims holds the stateless authorization data
 type KariClaims struct {
-	Rank        string   `json:"rank"`
-	Permissions []string `json:"permissions"`
-	Email       string   `json:"email"`
+	Rank        string   `json:"rank,omitempty"`
+	Permissions []string `json:"permissions,omitempty"`
+	Email       string   `json:"email,omitempty"`
+	TokenType   string   `json:"token_type"` // 🛡️ SLA: Distinguish between 'access' and 'refresh'
 	jwt.RegisteredClaims
 }
 
@@ -25,13 +26,14 @@ func NewTokenService(secret string) *TokenService {
 	return &TokenService{secret: []byte(secret)}
 }
 
-// GenerateAccessToken mints a short-lived token containing the user's exact access rights
-func (s *TokenService) GenerateAccessToken(user *domain.User) (string, error) {
-	// 🛡️ SLA: The payload is now the Source of Truth for the UI
-	claims := KariClaims{
+// GenerateTokenPair mints both the short-lived access token and the long-lived refresh token
+func (s *TokenService) GenerateTokenPair(user *domain.User) (string, string, error) {
+	// 1. 🛡️ Mint Access Token (15 Minutes) - Contains full RBAC data
+	accessClaims := KariClaims{
 		Rank:        user.Rank,
 		Permissions: user.Permissions,
 		Email:       user.Email,
+		TokenType:   "access",
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   user.ID.String(),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
@@ -39,15 +41,60 @@ func (s *TokenService) GenerateAccessToken(user *domain.User) (string, error) {
 			Issuer:    "kari-brain",
 		},
 	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	
-	// 🛡️ Cryptographic Sealing
-	// If the user tries to modify their 'Rank' to 'admin', this signature becomes invalid.
-	signedToken, err := token.SignedString(s.secret)
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	signedAccess, err := accessToken.SignedString(s.secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign access token: %w", err)
+		return "", "", fmt.Errorf("failed to sign access token: %w", err)
 	}
 
-	return signedToken, nil
+	// 2. 🛡️ Mint Refresh Token (7 Days) - Only contains the Subject ID
+	refreshClaims := KariClaims{
+		TokenType: "refresh",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   user.ID.String(),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "kari-brain",
+			ID:        uuid.New().String(), // JTI for potential database revocation tracking
+		},
+	}
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	signedRefresh, err := refreshToken.SignedString(s.secret)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to sign refresh token: %w", err)
+	}
+
+	return signedAccess, signedRefresh, nil
+}
+
+// VerifyRefreshToken validates the signature, expiry, and token type
+func (s *TokenService) VerifyRefreshToken(tokenString string) (uuid.UUID, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &KariClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// 🛡️ Zero-Trust: Force the signing method check
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return s.secret, nil
+	})
+
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid token signature or expired: %w", err)
+	}
+
+	claims, ok := token.Claims.(*KariClaims)
+	if !ok || !token.Valid {
+		return uuid.Nil, fmt.Errorf("invalid token claims")
+	}
+
+	// 🛡️ Explicitly prevent an Access token from being used as a Refresh token
+	if claims.TokenType != "refresh" {
+		return uuid.Nil, fmt.Errorf("invalid token type: expected refresh")
+	}
+
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("malformed subject claim")
+	}
+
+	return userID, nil
 }
