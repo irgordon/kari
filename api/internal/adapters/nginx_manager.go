@@ -6,11 +6,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"text/template"
 
 	"kari/api/internal/config"
 	"kari/api/internal/core/domain"
-	"kari/api/internal/grpc/rustagent" // Our generated gRPC client
+	pb "kari/api/proto/kari/agent/v1" // Aliased for clarity
 )
 
 // ==============================================================================
@@ -19,13 +20,15 @@ import (
 
 type NginxManager struct {
 	Config      *config.Config
-	AgentClient rustagent.SystemAgentClient
+	AgentClient pb.SystemAgentClient
 	Logger      *slog.Logger
 	Template    *template.Template
 }
 
-// NewNginxManager parses the template once at startup to fail fast if there's a syntax error.
-func NewNginxManager(cfg *config.Config, agentClient rustagent.SystemAgentClient, logger *slog.Logger) *NginxManager {
+// Strictly enforce valid domain names (e.g., sub.example.com)
+var domainRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.-]{1,253}[a-zA-Z0-9]$`)
+
+func NewNginxManager(cfg *config.Config, agentClient pb.SystemAgentClient, logger *slog.Logger) *NginxManager {
 	tmpl := template.Must(template.New("nginx_vhost").Parse(nginxTemplate))
 	return &NginxManager{
 		Config:      cfg,
@@ -40,20 +43,26 @@ func NewNginxManager(cfg *config.Config, agentClient rustagent.SystemAgentClient
 // ==============================================================================
 
 func (m *NginxManager) ApplyConfig(ctx context.Context, appConfig domain.WebServerConfig) error {
+	// 🛡️ 1. Zero-Trust Validation (Anti-Injection & Anti-Traversal)
+	if !domainRegex.MatchString(appConfig.DomainName) {
+		return fmt.Errorf("SECURITY VIOLATION: Invalid domain name format")
+	}
+
 	m.Logger.Info("Generating Nginx configuration", slog.String("domain", appConfig.DomainName))
 
-	// 1. Compile the Template
-	// We inject the dynamic paths directly from the Config struct (Environment Agnostic)
+	// 2. Compile the Template
 	data := struct {
 		DomainName string
 		Port       int
 		HasSSL     bool
 		SSLDir     string
+		WebRoot    string // 🛡️ Dynamically injected
 	}{
 		DomainName: appConfig.DomainName,
 		Port:       appConfig.LocalPort,
 		HasSSL:     appConfig.HasSSL,
-		SSLDir:     m.Config.SSLStorageDir, // e.g., "/etc/kari/ssl"
+		SSLDir:     m.Config.SSLStorageDir,
+		WebRoot:    m.Config.WebRoot,
 	}
 
 	var buf bytes.Buffer
@@ -61,11 +70,9 @@ func (m *NginxManager) ApplyConfig(ctx context.Context, appConfig domain.WebServ
 		return fmt.Errorf("failed to execute Nginx template: %w", err)
 	}
 
-	// 2. Transmit to the Rust Agent
-	// The Go Brain does not touch the disk. It sends the payload via gRPC.
 	configPath := fmt.Sprintf("%s/%s.conf", m.Config.NginxConfPath, appConfig.DomainName)
 	
-	writeReq := &rustagent.FileWriteRequest{
+	writeReq := &pb.FileWriteRequest{
 		TraceId:      fmt.Sprintf("nginx-%s", appConfig.DomainName),
 		AbsolutePath: configPath,
 		Content:      buf.Bytes(),
@@ -78,10 +85,10 @@ func (m *NginxManager) ApplyConfig(ctx context.Context, appConfig domain.WebServ
 		return fmt.Errorf("agent failed to write Nginx config: %w", err)
 	}
 
-	// 3. Command the Rust Agent to reload the Nginx Daemon securely
-	reloadReq := &rustagent.ServiceRequest{
+	// Command the Rust Agent to reload the Nginx Daemon
+	reloadReq := &pb.ServiceRequest{
 		ServiceName: "nginx",
-		Action:      rustagent.ServiceAction_RELOAD,
+		Action:      pb.ServiceAction_RELOAD,
 	}
 
 	if _, err := m.AgentClient.ManageService(ctx, reloadReq); err != nil {
@@ -93,11 +100,14 @@ func (m *NginxManager) ApplyConfig(ctx context.Context, appConfig domain.WebServ
 }
 
 func (m *NginxManager) RemoveConfig(ctx context.Context, domainName string) error {
-	// To remove a config, we just ask the Rust agent to run a targeted package command
-	// to delete the file, then reload Nginx.
+	// 🛡️ Zero-Trust Validation
+	if !domainRegex.MatchString(domainName) {
+		return fmt.Errorf("SECURITY VIOLATION: Invalid domain name format")
+	}
+
 	configPath := fmt.Sprintf("%s/%s.conf", m.Config.NginxConfPath, domainName)
 	
-	removeReq := &rustagent.PackageRequest{
+	removeReq := &pb.PackageRequest{
 		Command: "rm",
 		Args:    []string{"-f", configPath},
 	}
@@ -106,10 +116,9 @@ func (m *NginxManager) RemoveConfig(ctx context.Context, domainName string) erro
 		return fmt.Errorf("agent failed to remove Nginx config: %w", err)
 	}
 
-	// Reload daemon
-	reloadReq := &rustagent.ServiceRequest{
+	reloadReq := &pb.ServiceRequest{
 		ServiceName: "nginx",
-		Action:      rustagent.ServiceAction_RELOAD,
+		Action:      pb.ServiceAction_RELOAD,
 	}
 	_, err := m.AgentClient.ManageService(ctx, reloadReq)
 	
@@ -120,9 +129,6 @@ func (m *NginxManager) RemoveConfig(ctx context.Context, domainName string) erro
 // 3. The Nginx Configuration Template
 // ==============================================================================
 
-// This template is strict, opinionated, and highly secure.
-// It forces HTTP to HTTPS redirects, prevents framing (Clickjacking),
-// disables content sniffing, and strictly forwards WebSocket upgrade headers.
 const nginxTemplate = `
 # Automatically generated by Kari. DO NOT EDIT MANUALLY.
 # Domain: {{.DomainName}}
@@ -135,7 +141,8 @@ server {
     server_name {{.DomainName}};
     
     location /.well-known/acme-challenge/ {
-        root /var/www/html;
+        # 🛡️ Platform Agnostic WebRoot
+        root {{.WebRoot}};
         allow all;
     }
 
@@ -150,7 +157,6 @@ server {
     listen [::]:443 ssl http2;
     server_name {{.DomainName}};
 
-    # SSL Configuration (Paths injected dynamically from Kari Config)
     ssl_certificate {{.SSLDir}}/{{.DomainName}}/fullchain.pem;
     ssl_certificate_key {{.SSLDir}}/{{.DomainName}}/privkey.pem;
 
@@ -165,7 +171,8 @@ server {
     server_name {{.DomainName}};
 
     location /.well-known/acme-challenge/ {
-        root /var/www/html;
+        # 🛡️ Platform Agnostic WebRoot
+        root {{.WebRoot}};
         allow all;
     }
 {{end}}
@@ -181,18 +188,15 @@ server {
     location / {
         proxy_pass http://127.0.0.1:{{.Port}};
         
-        # Standard Proxy Headers
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # WebSocket Support
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         
-        # Timeouts (Adjusted for long-running Next.js / Node APIs)
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
