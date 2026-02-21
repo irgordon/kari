@@ -3,30 +3,48 @@ syntax = "proto3";
 
 package kari.agent.v1;
 
+// 🛡️ SOLID: Namespaced for Go internal visibility
 option go_package = "kari/api/internal/grpc/rustagent";
 
 // ==============================================================================
-// 1. The gRPC Service Definition
+// 1. The gRPC Service Definition (The Contract)
 // ==============================================================================
 
 service SystemAgent {
+  // 🛡️ SLA: Heartbeat & Resource Monitoring for the Brain's Prober
+  rpc GetSystemStatus (Empty) returns (SystemStatus);
+
+  // 📦 Execution & Isolation
   rpc ExecutePackageCommand(PackageRequest) returns (AgentResponse);
-  rpc WriteSystemFile(FileWriteRequest) returns (AgentResponse);
-  rpc ManageService(ServiceRequest) returns (AgentResponse);
   rpc ProvisionAppJail(ProvisionJailRequest) returns (AgentResponse);
+  rpc ManageService(ServiceRequest) returns (AgentResponse);
   
-  // 🛡️ SLA Enforcement: Server-Side Streaming for Memory Backpressure
+  // 🛡️ SLA Enforcement: Server-Side Streaming for Log Backpressure
   rpc StreamDeployment(DeployRequest) returns (stream LogChunk);
 
-  // Abstract Policy & Intent Endpoints
+  // 🛠️ Filesystem & Infrastructure
+  rpc WriteSystemFile(FileWriteRequest) returns (AgentResponse);
+  rpc InstallCertificate(SslPayload) returns (AgentResponse);
+  
+  // 🛡️ Abstract Policy Intent
   rpc ApplyFirewallPolicy(FirewallPolicy) returns (AgentResponse);
   rpc ScheduleJob(JobIntent) returns (AgentResponse);
-  rpc InstallCertificate(SslPayload) returns (AgentResponse);
 }
 
 // ==============================================================================
-// 2. Standardized Responses
+// 2. Telemetry & Standardized Responses
 // ==============================================================================
+
+message Empty {}
+
+message SystemStatus {
+  bool healthy = 1;
+  uint32 active_jails = 2;
+  float cpu_usage_percent = 3;
+  float memory_usage_mb = 4;
+  string agent_version = 5;
+  uint64 uptime_seconds = 6;
+}
 
 message AgentResponse {
   bool success = 1;
@@ -36,14 +54,14 @@ message AgentResponse {
   string error_message = 5;
 }
 
-// 🛡️ New Message: Real-time observability payload
+// 🛡️ Real-time observability payload for SvelteKit SSE
 message LogChunk {
   string trace_id = 1;
-  string content = 2;
+  string content = 2; // Raw ANSI output from the Rust sub-process
 }
 
 // ==============================================================================
-// 3. Abstract Intent Payloads (OS-Agnostic)
+// 3. Abstract Intent Payloads (Zero-Trust & OS-Agnostic)
 // ==============================================================================
 
 message FirewallPolicy {
@@ -51,32 +69,32 @@ message FirewallPolicy {
   enum Protocol { TCP = 0; UDP = 1; BOTH = 2; }
   
   Action action = 1;
-  uint32 port = 2; // Mathematically bounded to u16 in Rust logic
+  uint32 port = 2; // Validated in Rust as 1-65535
   Protocol protocol = 3;
   
-  // 🛡️ Enforces Rust's Option<String> / Go's *string
+  // 🛡️ Optional: Enforces strict source-based filtering
   optional string source_ip = 4; 
 }
 
 message JobIntent {
   string job_name = 1;
   
-  // 🛡️ Zero-Trust Enforcement: Split to prevent shell injection
+  // 🛡️ Zero-Trust: Split to prevent shell injection via OS execve
   string binary = 2;
   repeated string args = 3;
   
-  string schedule_expression = 4;
+  string schedule_expression = 4; // Cron format
   string run_as_user = 5;
 }
 
 message SslPayload {
   string domain_name = 1;
   bytes fullchain_pem = 2;
-  bytes privkey_pem = 3;
+  bytes privkey_pem = 3; // 🛡️ Privacy: Rust agent must zeroize this buffer!
 }
 
 // ==============================================================================
-// 4. Existing Operational Payloads
+// 4. Operational Payloads
 // ==============================================================================
 
 message PackageRequest {
@@ -103,11 +121,11 @@ message ProvisionJailRequest {
   string domain_name = 2;     
   string start_command = 3;   
   map<string, string> env_vars = 4; 
+  uint32 memory_limit_mb = 5; // 🛡️ SLA: Hard-limit enforcement
 }
 
 message DeployRequest {
-  // 🛡️ Trace ID added to link gRPC stream to DB Action Center
-  string trace_id = 1;
+  string trace_id = 1;        // Links stream to Dashboard Action Center
   string app_id = 2;
   string domain_name = 3;
   string repo_url = 4;        
