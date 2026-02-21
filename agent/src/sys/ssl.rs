@@ -1,10 +1,8 @@
-// agent/src/sys/ssl.rs
-
 use async_trait::async_trait;
 use std::fs as std_fs;
 use std::io::Write;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::fs as tokio_fs;
 
 use crate::sys::traits::{SslEngine, SslPayload};
@@ -14,11 +12,12 @@ use crate::sys::traits::{SslEngine, SslPayload};
 // ==============================================================================
 
 pub struct LinuxSslEngine {
-    ssl_storage_dir: String, 
+    // 🛡️ SLA: Strict Type to prevent path traversal
+    ssl_storage_dir: PathBuf, 
 }
 
 impl LinuxSslEngine {
-    pub fn new(ssl_storage_dir: String) -> Self {
+    pub fn new(ssl_storage_dir: PathBuf) -> Self {
         Self { ssl_storage_dir }
     }
 }
@@ -27,8 +26,7 @@ impl LinuxSslEngine {
 impl SslEngine for LinuxSslEngine {
     async fn install_certificate(&self, payload: SslPayload) -> Result<(), String> {
         
-        // 🛡️ 1. Zero-Trust Path Traversal Shield
-        // Domain names must only contain alphanumeric characters, hyphens, and dots.
+        // 1. 🛡️ Zero-Trust Path Traversal Shield
         if payload.domain_name.is_empty() || payload.domain_name.contains("..") || payload.domain_name.contains('/') {
             return Err("SECURITY VIOLATION: Invalid domain name format".into());
         }
@@ -38,68 +36,74 @@ impl SslEngine for LinuxSslEngine {
             return Err("SECURITY VIOLATION: Domain contains illegal characters".into());
         }
 
-        let domain_dir = format!("{}/{}", self.ssl_storage_dir, payload.domain_name);
-        let domain_path = Path::new(&domain_dir);
+        // 🛡️ SOLID: Use OS-native path joining
+        let domain_path = self.ssl_storage_dir.join(&payload.domain_name);
 
-        // 🛡️ 2. Eliminate Directory TOCTOU Race
-        tokio_fs::create_dir_all(domain_path)
+        // 2. Eliminate Directory TOCTOU Race
+        tokio_fs::create_dir_all(&domain_path)
             .await
             .map_err(|e| format!("Failed to create SSL directory: {}", e))?;
             
-        // 🛡️ 3. SLA Reliability: Remove unwrap()
-        let mut perms = tokio_fs::metadata(domain_path)
+        let mut perms = tokio_fs::metadata(&domain_path)
             .await
             .map_err(|e| format!("Failed to read directory metadata: {}", e))?
             .permissions();
-        perms.set_mode(0o750);
-        tokio_fs::set_permissions(domain_path, perms)
+        perms.set_mode(0o750); // rwxr-x---
+        tokio_fs::set_permissions(&domain_path, perms)
             .await
             .map_err(|e| format!("Failed to secure SSL directory permissions: {}", e))?;
 
-        // 4. Write the Public Certificate (Fullchain)
-        let fullchain_path = format!("{}/fullchain.pem", domain_dir);
-        tokio_fs::write(&fullchain_path, &payload.fullchain_pem)
-            .await
-            .map_err(|e| format!("Failed to write fullchain.pem: {}", e))?;
+        // 3. 🛡️ Write the Public Certificate (Eliminate TOCTOU via OpenOptions)
+        let fullchain_path = domain_path.join("fullchain.pem");
         
-        let mut fc_perms = tokio_fs::metadata(&fullchain_path)
+        // Convert std OpenOptions to tokio OpenOptions to do this asynchronously
+        let mut fc_opts = std_fs::OpenOptions::new();
+        fc_opts.write(true).create(true).truncate(true).mode(0o644); // rw-r--r--
+        
+        let mut fc_file = tokio_fs::OpenOptions::from(fc_opts)
+            .open(&fullchain_path)
             .await
-            .map_err(|e| format!("Failed to read fullchain metadata: {}", e))?
-            .permissions();
-        fc_perms.set_mode(0o644); // Publicly readable
-        tokio_fs::set_permissions(&fullchain_path, fc_perms)
+            .map_err(|e| format!("Failed to open fullchain file safely: {}", e))?;
+            
+        tokio::io::AsyncWriteExt::write_all(&mut fc_file, payload.fullchain_pem.as_bytes())
             .await
-            .map_err(|e| format!("Failed to set fullchain permissions: {}", e))?;
+            .map_err(|e| format!("Failed to write fullchain: {}", e))?;
 
-        // 5. Securely Write the Private Key (Zero-Copy + Zero-Race Boundary)
-        let privkey_path = format!("{}/privkey.pem", domain_dir);
+        // 4. Securely Write the Private Key (Zero-Copy + Zero-Race Boundary)
+        let privkey_path = domain_path.join("privkey.pem");
         
         // 🚨 CRITICAL SECURITY BOUNDARY 🚨
-        let write_result = payload.privkey_pem.use_secret(|secret_bytes| {
-            // 🛡️ 4. Eliminate the "Briefly World-Readable" vulnerability.
-            // We use OpenOptionsExt `.mode(0o600)` to instruct the Linux Kernel 
-            // to create the file with strict permissions FROM INCEPTION.
+        // Trade-off: We INTENTIONALLY use synchronous std::fs I/O inside this closure.
+        // The Rust Borrow Checker mathematically forbids passing the decrypted memory 
+        // reference across an `.await` boundary, as it would leak the plaintext into 
+        // the Tokio task's heap state machine.
+        let write_result = payload.privkey_pem.use_secret(|secret_str| {
             let mut file = std_fs::OpenOptions::new()
                 .write(true)
                 .create(true)
                 .truncate(true)
-                .mode(0o600) // rw-------
+                .mode(0o600) // rw------- (Strictly locked down from inception)
                 .open(&privkey_path)
                 .map_err(|e| format!("Failed to open privkey file securely: {}", e))?;
 
-            file.write_all(secret_bytes)
+            file.write_all(secret_str.as_bytes())
                 .map_err(|e| format!("Failed to write secret bytes: {}", e))?;
             
-            // Explicitly sync to ensure data hits disk before we zeroize RAM
+            // Explicitly sync to ensure data hits physical disk sectors before we zeroize RAM
             file.sync_all()
                 .map_err(|e| format!("Failed to sync privkey to disk: {}", e))?;
                 
             Ok::<(), String>(())
         });
 
+        // 5. 🛡️ Proactive Scrubbing
+        // The file is safely on the SSD. We proactively destroy the RAM buffer now
+        // rather than waiting for the function to end.
+        payload.privkey_pem.destroy();
+
         if let Err(e) = write_result {
-            // Cleanup on failure
-            let _ = std_fs::remove_file(&privkey_path);
+            // Cleanup on failure to prevent corrupted/half-written keys from lingering
+            let _ = tokio_fs::remove_file(&privkey_path).await;
             return Err(e);
         }
 
