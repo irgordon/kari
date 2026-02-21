@@ -1,0 +1,35 @@
+{
+  "manifest_version": "2026.1",
+  "engine_name": "Karı Orchestration",
+  "security_level": "STRICT",
+  "boundaries": {
+    "zero_trust": {
+      "require_peer_cred": true,
+      "expected_uid": 1001,
+      "socket_mode": "0660"
+    },
+    "cryptography": {
+      "aes_algorithm": "AES-256-GCM",
+      "min_key_entropy_hex": 64,
+      "jwt_signing_algorithm": "HS256",
+      "min_jwt_secret_length": 32,
+      "password_hash": "bcrypt",
+      "token_hash": "sha256"
+    },
+    "jailing": {
+      "filesystem_isolation": "strict",
+      "process_management": "cgroups_v2",
+      "default_mem_limit_mb": 128,
+      "default_cpu_limit_pct": 20
+    }
+  },
+  "compliance": {
+    "no_plaintext_secrets": true,
+    "enforce_origin_checks": true,
+    "anti_enumeration_hashing": true,
+    "immutable_infrastructure": true
+  },
+  "contacts": {
+    "vulnerability_report_email": "security@kariapp.dev"
+  }
+}
