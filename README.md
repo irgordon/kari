@@ -5,19 +5,19 @@
   <p>A fast, friendly control panel that installs in minutes and makes server management effortless, safe, and actually enjoyable. Get powerful tools, a clean interface, and complete control without the clutter.</p>
 
   <p>
-    <a href="[https://github.com/irgordon/kari/actions](https://github.com/irgordon/kari/actions)"><img src="[https://img.shields.io/badge/build-passing-brightgreen](https://img.shields.io/badge/build-passing-brightgreen)" alt="Build Status"></a>
-    <a href="[https://github.com/irgordon/kari/releases](https://github.com/irgordon/kari/releases)"><img src="[https://img.shields.io/badge/release-v1.0.0-blue](https://img.shields.io/badge/release-v1.0.0-blue)" alt="Release"></a>
-    <a href="[https://github.com/irgordon/kari/blob/main/LICENSE](https://github.com/irgordon/kari/blob/main/LICENSE)"><img src="[https://img.shields.io/badge/license-MIT-purple](https://img.shields.io/badge/license-MIT-purple)" alt="License"></a>
+    <a href="https://github.com/irgordon/kari/actions"><img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status"></a>
+    <a href="https://github.com/irgordon/kari/releases"><img src="https://img.shields.io/badge/release-v1.0.0-blue" alt="Release"></a>
+    <a href="https://github.com/irgordon/kari/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple" alt="License"></a>
   </p>
 
   <p>
-    <img src="[https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white](https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white)" alt="Go" />
-    <img src="[https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)" alt="Rust" />
-    <img src="[https://img.shields.io/badge/svelte-%23f1413d.svg?style=for-the-badge&logo=svelte&logoColor=white](https://img.shields.io/badge/svelte-%23f1413d.svg?style=for-the-badge&logo=svelte&logoColor=white)" alt="Svelte" />
-    <img src="[https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white](https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)" alt="PostgreSQL" />
-    <img src="[https://img.shields.io/badge/nginx-%23009639.svg?style=for-the-badge&logo=nginx&logoColor=white](https://img.shields.io/badge/nginx-%23009639.svg?style=for-the-badge&logo=nginx&logoColor=white)" alt="Nginx" />
-    <img src="[https://img.shields.io/badge/gRPC-%23244c5a.svg?style=for-the-badge&logo=grpc&logoColor=white](https://img.shields.io/badge/gRPC-%23244c5a.svg?style=for-the-badge&logo=grpc&logoColor=white)" alt="gRPC" />
-    <img src="[https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white)" alt="GitHub Actions" />
+    <img src="https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white" alt="Go" />
+    <img src="https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
+    <img src="https://img.shields.io/badge/svelte-%23f1413d.svg?style=for-the-badge&logo=svelte&logoColor=white" alt="Svelte" />
+    <img src="https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+    <img src="https://img.shields.io/badge/nginx-%23009639.svg?style=for-the-badge&logo=nginx&logoColor=white" alt="Nginx" />
+    <img src="https://img.shields.io/badge/gRPC-%23244c5a.svg?style=for-the-badge&logo=grpc&logoColor=white" alt="gRPC" />
+    <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white" alt="GitHub Actions" />
   </p>
 </div>
 
