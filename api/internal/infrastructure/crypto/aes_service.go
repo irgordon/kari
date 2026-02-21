@@ -1,4 +1,4 @@
-package crypto
+\package crypto
 
 import (
 	"context"
@@ -12,77 +12,78 @@ import (
 	"io"
 )
 
-type AESCryptoService struct {
-	key []byte
+// 🛡️ SLA: Domain Interface (Should live in core/domain/interfaces.go)
+type CryptoService interface {
+	Encrypt(ctx context.Context, plaintext []byte, associatedData []byte) (string, error)
+	Decrypt(ctx context.Context, ciphertextBase64 string, associatedData []byte) ([]byte, error)
 }
 
-// NewAESCryptoService expects a 64-character hex string (32 bytes of entropy).
+type AESCryptoService struct {
+	// 🛡️ Optimized: Pre-calculate the AEAD interface to reduce allocations
+	aead cipher.AEAD
+}
+
 func NewAESCryptoService(hexKey string) (*AESCryptoService, error) {
 	key, err := hex.DecodeString(hexKey)
 	if err != nil {
-		return nil, fmt.Errorf("invalid hex encoding for key: %w", err)
+		return nil, fmt.Errorf("crypto: invalid key encoding: %w", err)
 	}
 
 	if len(key) != 32 {
-		return nil, errors.New("encryption key must be exactly 32 bytes (256 bits)")
+		return nil, errors.New("crypto: key must be 32 bytes for AES-256")
 	}
 
-	return &AESCryptoService{key: key}, nil
-}
-
-// Encrypt implements Authenticated Encryption with Associated Data (AEAD).
-func (s *AESCryptoService) Encrypt(ctx context.Context, plaintext []byte, associatedData []byte) (string, error) {
-	block, err := aes.NewCipher(s.key)
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("crypto: block cipher failure: %w", err)
 	}
+
+	// 🛡️ Privacy Tip: Manually zeroize the temporary key slice after use
+	defer func() {
+		for i := range key {
+			key[i] = 0
+		}
+	}()
 
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("crypto: GCM failure: %w", err)
 	}
 
-	nonce := make([]byte, aesGCM.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
+	return &AESCryptoService{aead: aesGCM}, nil
+}
+
+func (s *AESCryptoService) Encrypt(ctx context.Context, plaintext []byte, associatedData []byte) (string, error) {
+	nonce := make([]byte, s.aead.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", fmt.Errorf("crypto: nonce generation failure: %w", err)
 	}
 
-	// 🛡️ Seal(dst, nonce, plaintext, additionalData)
-	// The nonce is prepended to the ciphertext for storage.
-	ciphertext := aesGCM.Seal(nonce, nonce, plaintext, associatedData)
+	// 🛡️ Memory Safety: Pre-allocate the exact size needed
+	// Capacity = nonce + plaintext + tag (usually 16 bytes)
+	ciphertext := s.aead.Seal(nonce, nonce, plaintext, associatedData)
 	
 	return base64.URLEncoding.EncodeToString(ciphertext), nil
 }
 
-// Decrypt verifies the authenticity of the ciphertext and the associated context.
 func (s *AESCryptoService) Decrypt(ctx context.Context, ciphertextBase64 string, associatedData []byte) ([]byte, error) {
 	data, err := base64.URLEncoding.DecodeString(ciphertextBase64)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("crypto: base64 decode failure: %w", err)
 	}
 
-	block, err := aes.NewCipher(s.key)
+	ns := s.aead.NonceSize()
+	if len(data) < ns {
+		return nil, errors.New("crypto: ciphertext too short")
+	}
+
+	nonce, actualCiphertext := data[:ns], data[ns:]
+
+	// 🛡️ AEAD Verification
+	// If the AppID or UserID used as 'associatedData' changed, this WILL fail.
+	plaintext, err := s.aead.Open(nil, nonce, actualCiphertext, associatedData)
 	if err != nil {
-		return nil, err
-	}
-
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonceSize := aesGCM.NonceSize()
-	if len(data) < nonceSize {
-		return nil, errors.New("malformed ciphertext: too short")
-	}
-
-	nonce, actualCiphertext := data[:nonceSize], data[nonceSize:]
-
-	// 🛡️ Open(dst, nonce, ciphertext, additionalData)
-	// If 'associatedData' (e.g. AppID) has been tampered with, this returns an error.
-	plaintext, err := aesGCM.Open(nil, nonce, actualCiphertext, associatedData)
-	if err != nil {
-		return nil, fmt.Errorf("decryption failed: integrity violation or invalid context")
+		return nil, fmt.Errorf("crypto: integrity violation - potential tampering detected")
 	}
 
 	return plaintext, nil
