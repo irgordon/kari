@@ -14,16 +14,18 @@ service SystemAgent {
   rpc WriteSystemFile(FileWriteRequest) returns (AgentResponse);
   rpc ManageService(ServiceRequest) returns (AgentResponse);
   rpc ProvisionAppJail(ProvisionJailRequest) returns (AgentResponse);
-  rpc DeployApplication(DeployRequest) returns (AgentResponse);
+  
+  // 🛡️ SLA Enforcement: Server-Side Streaming for Memory Backpressure
+  rpc StreamDeployment(DeployRequest) returns (stream LogChunk);
 
-  // --- NEW: Abstract Policy & Intent Endpoints ---
+  // Abstract Policy & Intent Endpoints
   rpc ApplyFirewallPolicy(FirewallPolicy) returns (AgentResponse);
   rpc ScheduleJob(JobIntent) returns (AgentResponse);
   rpc InstallCertificate(SslPayload) returns (AgentResponse);
 }
 
 // ==============================================================================
-// 2. Standardized Response
+// 2. Standardized Responses
 // ==============================================================================
 
 message AgentResponse {
@@ -32,6 +34,12 @@ message AgentResponse {
   string stdout = 3;
   string stderr = 4;
   string error_message = 5;
+}
+
+// 🛡️ New Message: Real-time observability payload
+message LogChunk {
+  string trace_id = 1;
+  string content = 2;
 }
 
 // ==============================================================================
@@ -43,22 +51,28 @@ message FirewallPolicy {
   enum Protocol { TCP = 0; UDP = 1; BOTH = 2; }
   
   Action action = 1;
-  uint32 port = 2;
+  uint32 port = 2; // Mathematically bounded to u16 in Rust logic
   Protocol protocol = 3;
-  string source_ip = 4; // e.g., "0.0.0.0/0" for global, or specific tenant IPs
+  
+  // 🛡️ Enforces Rust's Option<String> / Go's *string
+  optional string source_ip = 4; 
 }
 
 message JobIntent {
-  string job_name = 1;             // e.g., "kari-backup-worker"
-  string command = 2;              // The binary/script to execute
-  string schedule_expression = 3;  // e.g., "@daily" or "0 4 * * *"
-  string run_as_user = 4;          // e.g., "kari-app-123"
+  string job_name = 1;
+  
+  // 🛡️ Zero-Trust Enforcement: Split to prevent shell injection
+  string binary = 2;
+  repeated string args = 3;
+  
+  string schedule_expression = 4;
+  string run_as_user = 5;
 }
 
 message SslPayload {
   string domain_name = 1;
   bytes fullchain_pem = 2;
-  bytes privkey_pem = 3;           // Transmitted securely, wiped from RAM after disk write
+  bytes privkey_pem = 3;
 }
 
 // ==============================================================================
@@ -92,12 +106,14 @@ message ProvisionJailRequest {
 }
 
 message DeployRequest {
-  string app_id = 1;
-  string domain_name = 2;
-  string repo_url = 3;        
-  string branch = 4;          
-  string build_command = 5;   
-  map<string, string> env_vars = 6; 
+  // 🛡️ Trace ID added to link gRPC stream to DB Action Center
+  string trace_id = 1;
+  string app_id = 2;
+  string domain_name = 3;
+  string repo_url = 4;        
+  string branch = 5;          
+  string build_command = 6;   
+  map<string, string> env_vars = 7; 
 }
 
 enum ServiceAction {
