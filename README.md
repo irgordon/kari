@@ -68,11 +68,10 @@ graph TD
     end
 
     %% Connections
-    UI <-->|HTTPS REST & WSS Streams| API
-    API <-->|SQL / JSONB| DB
-    API <-->|gRPC (Unix Socket 0o660)| AGENT
-    AGENT -->|Abstract Traits & Safe Exec| OS
-
+    UI <-->|"HTTPS REST & WSS Streams"| API
+    API <-->|"SQL / JSONB"| DB
+    API <-->|"gRPC (Unix Socket 0o660)"| AGENT
+    AGENT -->|"Abstract Traits & Safe Exec"| OS
 ```
 
 ---
