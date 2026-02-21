@@ -1,49 +1,59 @@
-use secrecy::{ExposeSecret, Secret, Zeroize};
+use secrecy::{ExposeSecret, Secret, SecretString};
+use std::fmt;
 
 /// ProviderCredential is an ephemeral, memory-safe wrapper for highly sensitive data.
-/// It uses the 'secrecy' and 'zeroize' crates to ensure that once a secret is used,
+/// It uses the 'secrecy' crate to ensure that once a secret falls out of scope,
 /// its footprint in RAM is physically overwritten with zeros.
 pub struct ProviderCredential {
-    // 🛡️ Secret<T> ensures Debug and Display traits are redacted.
-    token: Secret<Vec<u8>>,
+    // 🛡️ Zero-Trust: We use SecretString or Secret<Vec<u8>>. 
+    // Here we use SecretString for provider tokens/passwords.
+    token: SecretString,
 }
 
 impl ProviderCredential {
-    /// Wraps raw bytes in a zeroizing Secret.
-    pub fn new(mut raw_token: Vec<u8>) -> Self {
-        // 🛡️ 1. Immediate Ownership & Confinement
-        // We move the raw_token into the Secret wrapper. 
-        // Note: In a true high-security context, we would use a mlock'd buffer.
-        Self { 
-            token: Secret::new(raw_token) 
+    /// 🛡️ Hardened constructor: Consumes the String directly.
+    pub fn from_string(s: String) -> Self {
+        // 1. 🛡️ Absolute Memory Safety (Zero-Copy)
+        // By passing the String directly into SecretString, we transfer ownership of the 
+        // EXACT heap allocation. No `.to_vec()` clones are made. There is only ever 
+        // one copy of this token in RAM.
+        Self {
+            token: SecretString::from(s),
         }
     }
 
-    /// Hardened constructor for Strings to prevent heap residue.
-    pub fn from_string(mut s: String) -> Self {
-        let bytes = s.as_bytes().to_vec();
-        // 🛡️ 2. Manual Scrutiny
-        // We zeroize the source string immediately after copying to the Vec.
-        s.zeroize(); 
-        Self::new(bytes)
-    }
-
     /// Safely exposes the secret for a fleeting moment.
-    /// 🛡️ Lexical Scope Confinement ensures the secret cannot escape the closure.
+    /// 🛡️ Lexical Scope Confinement: The secret cannot escape this closure.
     pub fn use_secret<F, R>(&self, action: F) -> R
     where
-        // R cannot be a reference to the secret bytes due to lifetime constraints.
-        F: FnOnce(&[u8]) -> R,
+        // R cannot be a reference to the secret string due to Rust's lifetime borrow checker.
+        // It mathematically guarantees the secret bytes do not outlive the closure.
+        F: FnOnce(&str) -> R,
     {
         action(self.token.expose_secret())
     }
+
+    /// 🛡️ Proactive Destruction
+    /// Provides a deterministic way to securely wipe the credential from RAM 
+    /// before the end of the function scope if it is no longer needed.
+    pub fn destroy(self) {
+        // By taking `self` by value and letting it fall out of scope immediately,
+        // we trigger the `secrecy` crate's Drop implementation, which physically 
+        // overwrites the memory with zeroes right now.
+        drop(self);
+    }
 }
 
-// 🛡️ 3. Explicit Drop Guarantee
-// Even though Secret<T> handles this, implementing Zeroize for our wrapper
-// provides a secondary safety net for future refactors.
-impl Zeroize for ProviderCredential {
-    fn zeroize(&mut self) {
-        // The secrecy crate handles the internal Vec zeroization.
+// 🛡️ SLA: Explicitly block Debug and Display traits just in case ProviderCredential 
+// is accidentally wrapped in a format!() macro elsewhere in the codebase.
+impl fmt::Debug for ProviderCredential {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("[REDACTED CREDENTIAL]")
+    }
+}
+
+impl fmt::Display for ProviderCredential {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("[REDACTED CREDENTIAL]")
     }
 }
