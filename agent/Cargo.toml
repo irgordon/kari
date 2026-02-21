@@ -1,0 +1,55 @@
+[package]
+name = "kari-agent"
+version = "0.1.0"
+edition = "2024" # 🛡️ Using the 2024 edition for enhanced future-proofing
+authors = ["Kari Orchestrator Team"]
+description = "The Muscle: High-privilege Rust Agent for secure system orchestration"
+
+[dependencies]
+# --- Core Async & Networking ---
+# We pin Tokio to the latest LTS to ensure IO safety and backpressure stability.
+tokio = { version = "1.38", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+async-trait = "0.1"
+async-stream = "0.3"
+
+# --- gRPC / Protobuf ---
+# Tonic provides the hardened gRPC implementation for our Unix Domain Socket.
+tonic = "0.11"
+prost = "0.12"
+prost-types = "0.12"
+
+# --- 🛡️ Zero-Trust & Security ---
+# 'secrecy' and 'zeroize' work together to overwrite sensitive RAM.
+secrecy = { version = "0.8", features = ["serde", "bytes"] }
+zeroize = { version = "1.7", features = ["derive"] }
+
+# 'nix' provides type-safe access to Linux syscalls (chown, peer_cred).
+nix = { version = "0.28", features = ["fs", "user", "uio"] }
+
+# 'tempfile' handles our ephemeral, episodic SSH keys for Git clones.
+tempfile = "3.10"
+
+# --- ⚙️ System Utilities ---
+# Used for GitOps scrubbing and validation logic.
+regex = "1.10"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# --- 📈 Telemetry & Observability ---
+# Maps to the Go Brain's structured slog output for unified logs.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+
+[build-dependencies]
+# Required to compile our shared .proto definition into Rust code.
+tonic-build = "0.11"
+
+[profile.release]
+# 🛡️ Hardening the binary against reverse-engineering and RAM scraping.
+opt-level = 3
+lto = true             # Link-Time Optimization for smaller, faster binaries.
+codegen-units = 1      # Improves optimization but slows down build time.
+panic = "abort"        # Prevents stack unwinding to reduce binary size and avoid leaks.
+strip = true           # Removes symbols and debug info from the final binary.
