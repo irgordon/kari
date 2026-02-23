@@ -1,4 +1,4 @@
-package services_test
+package crypto_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	crypto "kari/api/internal/infrastructure/crypto"
+	"kari/api/internal/infrastructure/crypto"
 )
 
 // generateTestKey creates a random 256-bit AES key in hex
