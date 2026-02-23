@@ -73,7 +73,7 @@ impl KariAgentService {
     }
 
     /// 🛡️ Zero-Trust: Strictly prevents directory traversal
-    fn secure_join(&self, base: &Path, unsafe_suffix: &str) -> Result<std::path::PathBuf, Status> {
+    fn secure_join(base: &Path, unsafe_suffix: &str) -> Result<std::path::PathBuf, Status> {
         if unsafe_suffix.contains("..") || unsafe_suffix.contains('/') || unsafe_suffix.contains('\\') {
             return Err(Status::invalid_argument("Path traversal detected in identifier"));
         }
@@ -82,7 +82,7 @@ impl KariAgentService {
 
     /// 🛡️ Zero-Trust: Validates that a string is a safe alphanumeric-dash identifier
     fn validate_identifier(value: &str, field_name: &str) -> Result<(), Status> {
-        if value.is_empty() || !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        if value.is_empty() || value.contains("..") || !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
             return Err(Status::invalid_argument(format!(
                 "Zero-Trust: Invalid {} format: '{}'", field_name, value
             )));
@@ -180,7 +180,7 @@ impl SystemAgent for KariAgentService {
         Self::validate_identifier(&req.domain_name, "domain_name")?;
 
         let app_user = format!("kari-app-{}", req.app_id);
-        let app_dir = self.secure_join(&self.config.web_root, &req.domain_name)?;
+        let app_dir = Self::secure_join(&self.config.web_root, &req.domain_name)?;
         let service_name = format!("kari-{}", req.domain_name);
 
         // Step 1: Provision the unprivileged OS user
@@ -301,7 +301,7 @@ impl SystemAgent for KariAgentService {
         let req = request.into_inner();
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S").to_string();
         
-        let base_dir = self.secure_join(&self.config.web_root, &req.domain_name)?;
+        let base_dir = Self::secure_join(&self.config.web_root, &req.domain_name)?;
         let release_dir = base_dir.join("releases").join(&timestamp);
         let app_user = format!("kari-app-{}", req.app_id);
 
@@ -383,7 +383,7 @@ impl SystemAgent for KariAgentService {
         Self::validate_identifier(&req.app_id, "app_id")?;
         Self::validate_identifier(&req.domain_name, "domain_name")?;
 
-        let app_dir = self.secure_join(&self.config.web_root, &req.domain_name)?;
+        let app_dir = Self::secure_join(&self.config.web_root, &req.domain_name)?;
         let app_user = format!("kari-app-{}", req.app_id);
         let service_name = format!("kari-{}", req.domain_name);
 
@@ -682,5 +682,66 @@ impl SystemAgent for KariAgentService {
             stderr: String::new(),
             error_message: String::new(),
         }))
+    }
+}
+
+// ==============================================================================
+// 🛡️ Unit Tests — Security Helper Validation
+// ==============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_secure_join_valid() {
+        let base = Path::new("/var/www/kari");
+        let result = KariAgentService::secure_join(base, "myapp");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), base.join("myapp"));
+    }
+
+    #[test]
+    fn test_secure_join_traversal() {
+        let base = Path::new("/var/www/kari");
+
+        // Parent directory
+        assert!(KariAgentService::secure_join(base, "..").is_err());
+        assert!(KariAgentService::secure_join(base, "../etc/passwd").is_err());
+
+        // Absolute path
+        assert!(KariAgentService::secure_join(base, "/etc/passwd").is_err());
+
+        // Subdirectory (contains '/')
+        assert!(KariAgentService::secure_join(base, "sub/dir").is_err());
+
+        // Windows-style backslash
+        assert!(KariAgentService::secure_join(base, "win\\path").is_err());
+    }
+
+    #[test]
+    fn test_validate_identifier_valid() {
+        assert!(KariAgentService::validate_identifier("my-app", "app_id").is_ok());
+        assert!(KariAgentService::validate_identifier("app_v1", "app_id").is_ok());
+        assert!(KariAgentService::validate_identifier("site.com", "domain").is_ok());
+        assert!(KariAgentService::validate_identifier("12345", "id").is_ok());
+    }
+
+    #[test]
+    fn test_validate_identifier_invalid() {
+        // Empty
+        assert!(KariAgentService::validate_identifier("", "field").is_err());
+
+        // Spaces
+        assert!(KariAgentService::validate_identifier("my app", "field").is_err());
+
+        // Special characters
+        assert!(KariAgentService::validate_identifier("app!", "field").is_err());
+        assert!(KariAgentService::validate_identifier("app@domain", "field").is_err());
+
+        // Path characters
+        assert!(KariAgentService::validate_identifier("path/to", "field").is_err());
+        assert!(KariAgentService::validate_identifier("..", "field").is_err());
     }
 }

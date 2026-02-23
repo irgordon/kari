@@ -5,6 +5,13 @@ All notable changes to the Karı Orchestration Engine will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🧪 Testing & Reliability
+
+- **Agent Security Helpers**: Added comprehensive unit tests for `secure_join` and `validate_identifier` in the Rust Agent, covering path traversal and identifier validation.
+- **Improved Zero-Trust Validation**: Hardened `validate_identifier` to proactively reject path traversal sequences (`..`), even when dots are otherwise allowed in the identifier.
+
 ## [1.0.0] - 2026-02-22
 
 ### 🎉 First Major Release: The Manifesto Realized
