@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🛡️ Security & Cryptography (Zero-Trust)
+
+- **Nginx Configuration Injection Fix**: Hardened `stream_deployment` in the Rust Agent to strictly validate `domain_name` and `app_id` using `validate_identifier` before generating Nginx configuration, preventing arbitrary directive injection (e.g., via `;` or `{`).
+
 ### 🧪 Testing & Reliability
 
 - **Agent Security Helpers**: Added comprehensive unit tests for `secure_join` and `validate_identifier` in the Rust Agent, covering path traversal and identifier validation.

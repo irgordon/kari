@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use tokio::process::Command;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 #[async_trait]

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use tokio::fs;
 use tokio::process::Command;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use crate::sys::traits::ProxyManager;
 
 // ==============================================================================

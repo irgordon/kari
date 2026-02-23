@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use std::net::IpAddr;
 use std::collections::HashMap;
 use std::path::Path;
 use tokio::sync::mpsc;
@@ -60,7 +59,7 @@ pub struct FirewallPolicy {
     pub action: FirewallAction,
     pub port: u16,
     pub protocol: Protocol,
-    pub source_ip: Option<IpAddr>,
+    pub source_ip: Option<String>,
 }
 
 #[async_trait]
@@ -119,4 +118,22 @@ pub trait JobScheduler: Send + Sync {
     /// Schedules a recurring job using the platform's native scheduler.
     /// 🛡️ SLA: The binary + args split prevents shell interpretation.
     async fn schedule_job(&self, intent: &JobIntent) -> Result<(), String>;
+}
+
+// ==============================================================================
+// 7. Release Hygiene (SLA: Disk Space Management)
+// ==============================================================================
+
+#[async_trait]
+pub trait ReleaseManager: Send + Sync {
+    async fn prune_old_releases(&self, releases_dir: &Path, keep_count: usize) -> Result<usize, String>;
+}
+
+// ==============================================================================
+// 8. Log Management (SLA: Compliance & Rotation)
+// ==============================================================================
+
+#[async_trait]
+pub trait LogManager: Send + Sync {
+    async fn configure_logrotate(&self, domain_name: &str, log_dir: &str) -> Result<(), String>;
 }

@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use tokio::process::Command;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::sys::traits::{FirewallAction, FirewallManager, FirewallPolicy, Protocol};
 
