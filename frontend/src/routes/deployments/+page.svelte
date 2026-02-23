@@ -6,12 +6,13 @@
 	import AppCreationWizard from '$lib/components/AppCreationWizard.svelte';
 	import DeploymentsTable from '$lib/components/DeploymentsTable.svelte';
 	import DeploymentTerminal from '$lib/components/DeploymentTerminal.svelte';
+	import type { Deployment } from '$lib/types';
 
 	// 🛡️ State Management
 	type ViewMode = 'list' | 'create' | 'terminal';
 	let view: ViewMode = 'list';
 	let activeTraceId: string | null = null;
-	let deployments: any[] = [];
+	let deployments: Deployment[] = [];
 	let loading = true;
 
 	// 📡 Initial Data Fetch from Go Brain

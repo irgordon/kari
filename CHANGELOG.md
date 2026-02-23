@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Agent Security Helpers**: Added comprehensive unit tests for `secure_join` and `validate_identifier` in the Rust Agent, covering path traversal and identifier validation.
 - **Improved Zero-Trust Validation**: Hardened `validate_identifier` to proactively reject path traversal sequences (`..`), even when dots are otherwise allowed in the identifier.
 
+### 🧹 Code Health
+
+- **Frontend Type Safety**: Introduced strict TypeScript definitions for `Deployment` entities in the SvelteKit frontend, replacing `any` types to prevent runtime errors and improve developer experience.
+
 ## [1.0.0] - 2026-02-22
 
 ### 🎉 First Major Release: The Manifesto Realized
