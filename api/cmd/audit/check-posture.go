@@ -87,6 +87,18 @@ func main() {
 		fmt.Println("✅ PASS: Socket path is correctly located.")
 	}
 
+	// --- Audit Point 5: Database Credentials ---
+	dbURL := os.Getenv("DATABASE_URL")
+	if strings.Contains(dbURL, "dev_password") {
+		fmt.Println("❌ FAIL: DATABASE_URL is using default development credentials.")
+		hasErrors = true
+	} else if dbURL == "" {
+		fmt.Println("❌ FAIL: DATABASE_URL must be set.")
+		hasErrors = true
+	} else {
+		fmt.Println("✅ PASS: Database URL does not use default credentials.")
+	}
+
 	// 3. Final Verdict
 	fmt.Println("--------------------------------------------------")
 	if hasErrors {
