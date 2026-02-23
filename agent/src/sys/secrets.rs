@@ -1,4 +1,4 @@
-use secrecy::{ExposeSecret, Secret, SecretString};
+use secrecy::{ExposeSecret, SecretString};
 use std::fmt;
 
 /// ProviderCredential is an ephemeral, memory-safe wrapper for highly sensitive data.

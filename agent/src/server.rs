@@ -5,20 +5,22 @@ use std::path::Path;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 use zeroize::Zeroizing;
 
 use crate::config::AgentConfig;
-use crate::sys::build::{BuildManager, SystemBuildManager};
-use crate::sys::git::{GitManager, SystemGitManager};
+use crate::sys::build::SystemBuildManager;
+use crate::sys::git::SystemGitManager;
 use crate::sys::jail::{JailManager, LinuxJailManager};
 use crate::sys::systemd::{LinuxSystemdManager, ServiceManager, ServiceConfig};
 use crate::sys::traits::{
     ProxyManager, FirewallManager, SslEngine, JobScheduler,
+    GitManager, BuildManager,
     FirewallAction, Protocol, FirewallPolicy as TraitFirewallPolicy,
     SslPayload as TraitSslPayload, JobIntent as TraitJobIntent,
 };
 use crate::sys::secrets::ProviderCredential;
+use zeroize::Zeroize;
 
 // Import the generated gRPC types
 pub mod kari_agent {
@@ -108,8 +110,8 @@ impl SystemAgent for KariAgentService {
         sys.refresh_all();
 
         // 🛡️ SLA: Calculate metrics from kernel-level sources
-        let cpu_usage = sys.global_cpu_usage();
-        let total_memory = sys.total_memory() as f64;
+        let cpu_usage = sys.global_cpu_info().cpu_usage();
+        let _total_memory = sys.total_memory() as f64;
         let used_memory = sys.used_memory() as f64;
         let memory_usage_mb = (used_memory / 1_048_576.0) as f32;
 
@@ -117,10 +119,7 @@ impl SystemAgent for KariAgentService {
         let active_jails = sys.processes()
             .values()
             .filter(|p| {
-                p.name()
-                    .to_str()
-                    .map(|n| n.starts_with("kari-"))
-                    .unwrap_or(false)
+                p.name().starts_with("kari-")
             })
             .count() as u32;
 
@@ -233,7 +232,7 @@ impl SystemAgent for KariAgentService {
         Ok(Response::new(AgentResponse {
             success: true,
             exit_code: 0,
-            stdout: format!("Jail '{}' provisioned with {}MB memory limit", service_name, req.memory_limit_mb),
+            stdout: format!("Jail '{}' provisioned with {}MB memory limit", service_name, transient_req.memory_limit_mb),
             stderr: String::new(),
             error_message: String::new(),
         }))
@@ -299,6 +298,11 @@ impl SystemAgent for KariAgentService {
         request: Request<DeployRequest>,
     ) -> Result<Response<Self::StreamDeploymentStream>, Status> {
         let req = request.into_inner();
+
+        // 🛡️ Zero-Trust: Validate identifiers before processing
+        Self::validate_identifier(&req.app_id, "app_id")?;
+        Self::validate_identifier(&req.domain_name, "domain_name")?;
+
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S").to_string();
         
         let base_dir = Self::secure_join(&self.config.web_root, &req.domain_name)?;
@@ -607,9 +611,11 @@ impl SystemAgent for KariAgentService {
             if ip_str.is_empty() {
                 None
             } else {
-                Some(ip_str.parse().map_err(|_| {
+                // Validate as IP address first
+                let _ = ip_str.parse::<std::net::IpAddr>().map_err(|_| {
                     Status::invalid_argument(format!("Zero-Trust: Invalid source IP: '{}'", ip_str))
-                })?)
+                })?;
+                Some(ip_str.clone())
             }
         } else {
             None
@@ -743,5 +749,22 @@ mod tests {
         // Path characters
         assert!(KariAgentService::validate_identifier("path/to", "field").is_err());
         assert!(KariAgentService::validate_identifier("..", "field").is_err());
+    }
+
+    #[test]
+    fn test_secure_join_allows_nginx_injection_chars() {
+        // This test documents the vulnerability: secure_join prevents traversal but allows
+        // characters dangerous for config generation if not validated separately.
+        let base = Path::new("/var/www/kari");
+        // We use a semicolon to terminate the directive and start a new one (config injection),
+        // but no slashes so secure_join won't catch it.
+        let malicious_input = "site.com; user root;";
+
+        // secure_join allows this because it doesn't contain ".." or "/" or "\"
+        let result = KariAgentService::secure_join(base, malicious_input);
+        assert!(result.is_ok());
+
+        // However, validate_identifier SHOULD reject it
+        assert!(KariAgentService::validate_identifier(malicious_input, "domain").is_err());
     }
 }

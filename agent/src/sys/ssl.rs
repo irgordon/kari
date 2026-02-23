@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::fs as std_fs;
 use std::io::Write;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::fs as tokio_fs;
 
 use crate::sys::traits::{SslEngine, SslPayload};

@@ -15,5 +15,3 @@ pub mod firewall;   // Network policy enforcement
 
 // 🏗️ SLA Re-exports
 // We re-export common types so server.rs doesn't have deep nested imports.
-pub use traits::{ProxyManager, GitManager, BuildManager, FirewallManager, SslEngine, JobScheduler};
-pub use secrets::ProviderCredential;
