@@ -51,7 +51,7 @@ func main() {
 	}
 
 	grpcConn, err := grpc.Dial(
-		cfg.AgentSocketPath,
+		cfg.AgentSocket,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(grpcDialer),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
