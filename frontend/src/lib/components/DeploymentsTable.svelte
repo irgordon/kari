@@ -2,9 +2,10 @@
   import { createEventDispatcher } from 'svelte';
   import { fade } from 'svelte/transition';
   import { formatDistanceToNow } from 'date-fns'; // Recommended for 2026 UI standards
+  import type { Deployment } from '$lib/types';
 
   // Props
-  export let deployments: any[] = [];
+  export let deployments: Deployment[] = [];
   export let loading: boolean = false;
 
   const dispatch = createEventDispatcher();
