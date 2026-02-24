@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
+	// "time"
 
 	"github.com/gin-gonic/gin"
-	"kari/api/internal/grpc/client"
-	"kari/api/proto/agent"
+	agent "kari/api/proto/kari/agent/v1"
 	"log/slog"
 )
 

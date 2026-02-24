@@ -1,4 +1,4 @@
-package http
+package handlers
 
 import (
 	"encoding/json"
@@ -43,7 +43,7 @@ func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Requ
 	}
 
 	// 🛡️ Zero-Trust: Identify the requesting user
-	userID, ok := r.Context().Value(middleware.UserKey).(uuid.UUID)
+	_, ok := r.Context().Value(middleware.UserKey).(uuid.UUID)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

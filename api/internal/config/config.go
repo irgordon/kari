@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strings"
 )
 
 // Config holds all dynamic configuration for the Brain.
@@ -11,6 +12,7 @@ type Config struct {
 	Environment string // "development" or "production"
 	DatabaseURL string
 	Port        string
+	AllowedOrigins []string
 
 	// 🛡️ Zero-Trust Identity
 	JWTSecret    string
@@ -40,12 +42,22 @@ func Load() *Config {
 		dbURL = "postgres://kari_admin:dev_password@localhost:5432/kari?sslmode=disable"
 	}
 
+	// 3. 🛡️ Strict CORS: Must be explicitly defined in Production
+	corsOrigins := getEnv("CORS_ALLOWED_ORIGINS", "")
+	if corsOrigins == "" {
+		if env == "production" {
+			log.Fatal("🚨 [FATAL] CORS_ALLOWED_ORIGINS environment variable is required in production.")
+		}
+		corsOrigins = "http://localhost:5173"
+	}
+
 	return &Config{
-		Environment:  env,
-		DatabaseURL:  dbURL,
-		Port:         getEnv("PORT", "8080"),
-		JWTSecret:    jwtSecret,
-		MasterKeyHex: getEnv("ENCRYPTION_KEY", ""),
+		Environment:    env,
+		DatabaseURL:    dbURL,
+		Port:           getEnv("PORT", "8080"),
+		AllowedOrigins: strings.Split(corsOrigins, ","),
+		JWTSecret:      jwtSecret,
+		MasterKeyHex:   getEnv("ENCRYPTION_KEY", ""),
 
 		// 2. 🛡️ Network Agnosticism: The only way the Brain talks to the Muscle
 		AgentSocket: getEnv("AGENT_SOCKET", "/var/run/kari/agent.sock"),

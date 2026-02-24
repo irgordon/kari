@@ -10,6 +10,7 @@ import (
 type Application struct {
 	ID           uuid.UUID         `json:"id"`
 	DomainID     uuid.UUID         `json:"domain_id"`
+	AppType      string            `json:"app_type"`
 	DomainName   string            `json:"domain_name,omitempty"` // Eagerly loaded for Agent gRPC
 	OwnerID      uuid.UUID         `json:"owner_id"`              // For IDOR & Rank checks
 	AppUser      string            `json:"app_user"`             // OS-level jail identity

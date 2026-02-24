@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi/v5/middleware"
+	// "github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/time/rate"
 
 	"kari/api/internal/core/domain"
@@ -20,6 +20,11 @@ type AuthMiddleware struct {
 	UserRepo    domain.UserRepository // 🛡️ Added for Real-time Zero-Trust checks
 	Logger      *slog.Logger
 	visitors    sync.Map // 🛡️ Thread-safe Map for high-concurrency scaling
+}
+
+type visitor struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
 }
 
 func NewAuthMiddleware(authService domain.AuthService, roleService domain.RoleService, userRepo domain.UserRepository, logger *slog.Logger) *AuthMiddleware {
