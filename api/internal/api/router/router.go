@@ -16,6 +16,7 @@ import (
 
 // RouterConfig defines the strict dependencies required to build the API routing tree.
 type RouterConfig struct {
+	AllowedOrigins []string
 	AuthHandler    *handlers.AuthHandler
 	AppHandler     *handlers.AppHandler
 	DomainHandler  *handlers.DomainHandler
@@ -52,7 +53,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 
 	// Strict CORS Configuration
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*", "http://localhost:5173"},
+		AllowedOrigins:   cfg.AllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Hub-Signature-256", "X-GitHub-Event"},
 		ExposedHeaders:   []string{"Link", "Set-Cookie"},
@@ -94,7 +95,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		// Protected Routes (Requires a Valid JWT)
 		// ---------------------------------------------------------------------
 		r.Group(func(r chi.Router) {
-			r.Use(cfg.AuthMiddleware.RequireAuthentication())
+			r.Use(cfg.AuthMiddleware.RequireAuthentication)
 
 			// --- Mutating Method Guard (Stateless RBAC) ---
 			// 🛡️ Zero-Trust: Even if a specific route forgets a RequirePermission check,
@@ -144,7 +145,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 					Get("/{id}", cfg.AppHandler.GetByID)
 				
 				r.With(cfg.AuthMiddleware.RequirePermission("applications", "write")).
-					With(middleware.ValidateEnvVars).
+					With(auth_middleware.ValidateEnvVars).
 					Put("/{id}/env", cfg.AppHandler.UpdateEnv)
 				
 				r.With(cfg.AuthMiddleware.RequirePermission("applications", "deploy")).
@@ -160,7 +161,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 
 			// --- WebSocket Real-Time Terminal Streaming ---
 			r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).
-				With(middleware.ValidateTraceID("trace_id")).
+				With(auth_middleware.ValidateTraceID("trace_id")).
 				Get("/ws/deployments/{trace_id}", cfg.WSHandler.StreamDeploymentLogs)
 		})
 	})

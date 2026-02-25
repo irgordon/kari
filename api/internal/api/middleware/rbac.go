@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"context"
-	"errors"
+	// "errors"
 	"net/http"
 	"strings"
 
