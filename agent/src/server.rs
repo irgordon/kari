@@ -358,6 +358,8 @@ impl SystemAgent for KariAgentService {
             let _ = tx.send(Ok(log("🌐 Updating Proxy & Restarting...\n"))).await;
             
             let port = req.port.unwrap_or(3000) as u16;
+            // 🛡️ Zero-Trust: ProxyManager implementation strictly validates domain_name to prevent Nginx/Apache injection.
+            // This is Defense-in-Depth as validate_identifier() also checks it upstream.
             if let Err(e) = proxy.create_vhost(&req.domain_name, port).await {
                 let _ = tx.send(Ok(log(&format!("❌ Proxy Error: {}\n", e)))).await;
                 return;
