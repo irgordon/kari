@@ -4,6 +4,22 @@ use tokio::process::Command;
 use std::path::PathBuf;
 use crate::sys::traits::ProxyManager;
 
+/// 🛡️ Zero-Trust: Strictly validates domain names to prevent config injection
+fn validate_domain_format(domain: &str) -> Result<(), String> {
+    if domain.is_empty() {
+        return Err("Domain cannot be empty".to_string());
+    }
+    if domain.contains("..") || domain.contains('/') || domain.contains('\\') {
+        return Err(format!("Zero-Trust: Path traversal detected in domain: '{}'", domain));
+    }
+    // Allow alphanumeric, dots, hyphens, underscores.
+    // Reject everything else (including spaces, quotes, brackets, semicolons)
+    if !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
+        return Err(format!("Zero-Trust: Invalid characters in domain name: '{}'", domain));
+    }
+    Ok(())
+}
+
 // ==============================================================================
 // 1. Apache Implementation
 // ==============================================================================
@@ -33,6 +49,8 @@ impl ApacheManager {
 #[async_trait]
 impl ProxyManager for ApacheManager {
     async fn create_vhost(&self, domain: &str, target_port: u16) -> Result<(), String> {
+        validate_domain_format(domain)?;
+
         let config_path = self.base_path.join("sites-available").join(format!("{}.conf", domain));
         let enabled_link = self.base_path.join("sites-enabled").join(format!("{}.conf", domain));
 
@@ -55,6 +73,8 @@ impl ProxyManager for ApacheManager {
     }
 
     async fn remove_vhost(&self, domain: &str) -> Result<(), String> {
+        validate_domain_format(domain)?;
+
         let config_path = self.base_path.join("sites-available").join(format!("{}.conf", domain));
         let enabled_link = self.base_path.join("sites-enabled").join(format!("{}.conf", domain));
         let _ = fs::remove_file(enabled_link).await;
@@ -92,6 +112,8 @@ impl NginxManager {
 #[async_trait]
 impl ProxyManager for NginxManager {
     async fn create_vhost(&self, domain: &str, target_port: u16) -> Result<(), String> {
+        validate_domain_format(domain)?;
+
         let config_path = self.base_path.join("sites-available").join(domain);
         let enabled_link = self.base_path.join("sites-enabled").join(domain);
 
@@ -118,10 +140,45 @@ impl ProxyManager for NginxManager {
     }
 
     async fn remove_vhost(&self, domain: &str) -> Result<(), String> {
+        validate_domain_format(domain)?;
+
         let config_path = self.base_path.join("sites-available").join(domain);
         let enabled_link = self.base_path.join("sites-enabled").join(domain);
         let _ = fs::remove_file(enabled_link).await;
         let _ = fs::remove_file(config_path).await;
         self.test_and_reload().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_domain_format_valid() {
+        assert!(validate_domain_format("example.com").is_ok());
+        assert!(validate_domain_format("sub.example.com").is_ok());
+        assert!(validate_domain_format("my-site.com").is_ok());
+        assert!(validate_domain_format("under_score.com").is_ok());
+        assert!(validate_domain_format("123.com").is_ok());
+    }
+
+    #[test]
+    fn test_validate_domain_format_invalid() {
+        // Injection attempts
+        assert!(validate_domain_format("example.com;").is_err());
+        assert!(validate_domain_format("example.com{").is_err());
+        assert!(validate_domain_format("example.com}").is_err());
+        assert!(validate_domain_format("example.com space").is_err());
+        assert!(validate_domain_format("example.com\n").is_err());
+        assert!(validate_domain_format("example.com\t").is_err());
+
+        // Path traversal
+        assert!(validate_domain_format("../foo").is_err());
+        assert!(validate_domain_format("foo/bar").is_err());
+        assert!(validate_domain_format("foo\\bar").is_err());
+
+        // Empty
+        assert!(validate_domain_format("").is_err());
     }
 }
