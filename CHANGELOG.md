@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🛡️ Security & Cryptography (Zero-Trust)
 
+- **Setup Wizard Credential Leak**: Fixed a critical vulnerability in `frontend/src/routes/setup/+page.svelte` where default database credentials (`postgres://kari_admin:password...`) were hardcoded in the frontend source. The input field now initializes to an empty string with a secure placeholder, forcing administrators to explicitly provide their own credentials.
 - **CORS Hardening**: Fixed a critical vulnerability where `AllowedOrigins` used a wildcard (`*`) combined with `AllowCredentials: true`. The configuration now strictly enforces a whitelist of origins loaded from the `CORS_ALLOWED_ORIGINS` environment variable, preventing potential Cross-Origin Resource Sharing attacks.
 - **Nginx Configuration Injection Fix**: Hardened `stream_deployment` in the Rust Agent to strictly validate `domain_name` and `app_id` using `validate_identifier` before generating Nginx configuration, preventing arbitrary directive injection (e.g., via `;` or `{`).
 
