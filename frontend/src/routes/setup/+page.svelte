@@ -41,7 +41,7 @@
   let adminEmail = "";
   let adminPassword = "";
   let confirmPassword = "";
-  let dbUrl = "postgres://kari_admin:password@db:5432/kari?sslmode=disable";
+  let dbUrl = "";
   let appDomain = "";
 
   // Security State
@@ -304,6 +304,7 @@
                 id="dbUrl"
                 type="text"
                 bind:value={dbUrl}
+                placeholder="postgres://user:pass@host:5432/dbname?sslmode=disable"
                 class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 font-mono text-sm
                      focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
               />
