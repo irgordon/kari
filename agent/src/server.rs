@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::path::Path;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use tracing::{info, warn};
 use zeroize::Zeroizing;
+use sysinfo::System;
 
 use crate::config::AgentConfig;
 use crate::sys::build::SystemBuildManager;
@@ -51,6 +52,7 @@ pub struct KariAgentService {
     firewall_mgr: Arc<dyn FirewallManager>,
     ssl_engine: Arc<dyn SslEngine>,
     job_scheduler: Arc<dyn JobScheduler>,
+    system_monitor: Arc<Mutex<System>>,
 }
 
 impl KariAgentService {
@@ -71,6 +73,7 @@ impl KariAgentService {
             ssl_engine,
             job_scheduler,
             config,
+            system_monitor: Arc::new(Mutex::new(System::new_all())),
         }
     }
 
@@ -135,9 +138,9 @@ impl SystemAgent for KariAgentService {
         &self,
         _request: Request<Empty>,
     ) -> Result<Response<SystemStatus>, Status> {
-        use sysinfo::System;
 
-        let mut sys = System::new_all();
+        // ⚡ Performance: Reuse System instance
+        let mut sys = self.system_monitor.lock().unwrap();
         sys.refresh_all();
 
         // 🛡️ SLA: Calculate metrics from kernel-level sources
