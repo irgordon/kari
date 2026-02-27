@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🧪 Testing & Reliability
 
+- **Token Service Coverage**: Added comprehensive unit tests for `TokenService` in the Go API to verify JWT generation and validation logic.
+  - 🎯 **What**: Addressed a testing gap for `GenerateTokenPair` and `VerifyRefreshToken`.
+  - 📊 **Coverage**: Now covering access/refresh token claims, signing, expiration, and invalid token rejection scenarios.
+  - ✨ **Result**: Increased confidence in authentication reliability and regression prevention.
 - **Agent Security Helpers**: Added comprehensive unit tests for `secure_join` and `validate_identifier` in the Rust Agent, covering path traversal and identifier validation.
 - **Improved Zero-Trust Validation**: Hardened `validate_identifier` to proactively reject path traversal sequences (`..`), even when dots are otherwise allowed in the identifier.
 
