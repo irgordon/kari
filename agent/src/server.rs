@@ -91,6 +91,37 @@ impl KariAgentService {
         }
         Ok(())
     }
+
+    /// 🛡️ Zero-Trust: Strictly validates domain names to prevent Nginx/Apache config injection.
+    /// This is more restrictive than `validate_identifier` to satisfy RFC 1035/1123 where possible
+    /// while ensuring no special characters (`;`, `{`, `}`, spaces, etc.) can slip through.
+    fn validate_domain_name(domain: &str) -> Result<(), Status> {
+        if domain.is_empty() {
+            return Err(Status::invalid_argument("Domain name cannot be empty"));
+        }
+
+        if domain.contains("..") || domain.contains('/') || domain.contains('\\') {
+            return Err(Status::invalid_argument("Path traversal detected in domain name"));
+        }
+
+        // Nginx configuration injection prevention:
+        // Strictly allow only alphanumeric, dots, hyphens, and underscores.
+        // Underscores are technically not allowed in DNS hostnames but are allowed in Nginx server_names.
+        if !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
+            return Err(Status::invalid_argument(format!(
+                "Zero-Trust: Invalid domain name format: '{}' (contains potentially dangerous characters)", domain
+            )));
+        }
+
+        // Ensure it doesn't start or end with a hyphen or dot (basic RFC compliance + Nginx safety)
+        if domain.starts_with('-') || domain.ends_with('-') || domain.starts_with('.') || domain.ends_with('.') {
+             return Err(Status::invalid_argument(format!(
+                "Zero-Trust: Invalid domain name format: '{}' (cannot start/end with '-' or '.')", domain
+            )));
+        }
+
+        Ok(())
+    }
 }
 
 #[tonic::async_trait]
@@ -176,7 +207,7 @@ impl SystemAgent for KariAgentService {
 
         // 🛡️ Zero-Trust Input Validation
         Self::validate_identifier(&req.app_id, "app_id")?;
-        Self::validate_identifier(&req.domain_name, "domain_name")?;
+        Self::validate_domain_name(&req.domain_name)?;
 
         let app_user = format!("kari-app-{}", req.app_id);
         let app_dir = Self::secure_join(&self.config.web_root, &req.domain_name)?;
@@ -301,7 +332,7 @@ impl SystemAgent for KariAgentService {
 
         // 🛡️ Zero-Trust: Validate identifiers before processing
         Self::validate_identifier(&req.app_id, "app_id")?;
-        Self::validate_identifier(&req.domain_name, "domain_name")?;
+        Self::validate_domain_name(&req.domain_name)?;
 
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S").to_string();
         
@@ -387,7 +418,7 @@ impl SystemAgent for KariAgentService {
 
         // 🛡️ Zero-Trust: Validate inputs
         Self::validate_identifier(&req.app_id, "app_id")?;
-        Self::validate_identifier(&req.domain_name, "domain_name")?;
+        Self::validate_domain_name(&req.domain_name)?;
 
         let app_dir = Self::secure_join(&self.config.web_root, &req.domain_name)?;
         let app_user = format!("kari-app-{}", req.app_id);
@@ -549,7 +580,7 @@ impl SystemAgent for KariAgentService {
         let req = request.into_inner();
 
         // 🛡️ Zero-Trust: Validate domain
-        Self::validate_identifier(&req.domain_name, "domain_name")?;
+        Self::validate_domain_name(&req.domain_name)?;
 
         // 🛡️ Privacy: Wrap the private key in a Zeroizing buffer.
         // When this drops, the memory is physically overwritten with 0x00.
@@ -768,5 +799,54 @@ mod tests {
 
         // However, validate_identifier SHOULD reject it
         assert!(KariAgentService::validate_identifier(malicious_input, "domain").is_err());
+    }
+
+    // This test simulates the logic used in stream_deployment to ensure
+    // that the validation mechanisms prevent Nginx config injection.
+    #[tokio::test]
+    async fn test_nginx_config_injection_prevention() {
+        // 1. Simulate malicious input that attempts to inject Nginx directives
+        // e.g. "example.com; user root;"
+        let malicious_domains = vec![
+            "example.com; user root;",
+            "example.com{",
+            "example.com}",
+            "example.com\n",
+            "example.com ",
+            "example.com\t",
+            "example.com&",
+            "example.com|",
+        ];
+
+        for domain in malicious_domains {
+            // Check if validate_domain_name catches it (it should)
+            let result = KariAgentService::validate_domain_name(domain);
+            assert!(result.is_err(), "validate_domain_name failed to reject malicious domain: '{}'", domain);
+        }
+
+        // 2. Verify invalid start/end chars
+        let invalid_edge_cases = vec![
+            "-example.com",
+            "example.com-",
+            ".example.com",
+            "example.com.",
+        ];
+        for domain in invalid_edge_cases {
+             let result = KariAgentService::validate_domain_name(domain);
+             assert!(result.is_err(), "validate_domain_name failed to reject invalid start/end chars: '{}'", domain);
+        }
+
+        // 3. Verify valid domains pass
+        let valid_domains = vec![
+            "example.com",
+            "sub.example.com",
+            "my-site.net",
+            "v1.api.io",
+        ];
+
+        for domain in valid_domains {
+            let result = KariAgentService::validate_domain_name(domain);
+            assert!(result.is_ok(), "validate_domain_name rejected valid domain: '{}'", domain);
+        }
     }
 }
