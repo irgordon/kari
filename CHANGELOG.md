@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Setup Wizard Credential Leak**: Fixed a critical vulnerability in `frontend/src/routes/setup/+page.svelte` where default database credentials (`postgres://kari_admin:password...`) were hardcoded in the frontend source. The input field now initializes to an empty string with a secure placeholder, forcing administrators to explicitly provide their own credentials.
 - **CORS Hardening**: Fixed a critical vulnerability where `AllowedOrigins` used a wildcard (`*`) combined with `AllowCredentials: true`. The configuration now strictly enforces a whitelist of origins loaded from the `CORS_ALLOWED_ORIGINS` environment variable, preventing potential Cross-Origin Resource Sharing attacks.
 - **Nginx Configuration Injection Fix**: Hardened `stream_deployment` in the Rust Agent to strictly validate `domain_name` and `app_id` using `validate_identifier` before generating Nginx configuration, preventing arbitrary directive injection (e.g., via `;` or `{`).
+- **Nginx Config Injection Fix (Strict Domain Validation)**: Implemented `validate_domain_name` in `agent/src/server.rs` to enforce strict Nginx-safe character sets.
+  - 🎯 **What**: Prevented Nginx configuration injection by rejecting characters like `;`, `{`, `}`, and whitespace in domain names.
+  - 💡 **Why**: Directly using `req.domain_name` in Nginx config generation without specific validation could allow attackers to inject arbitrary Nginx directives.
+  - 🛡️ **How**: Replaced generic `validate_identifier` with a stricter `validate_domain_name` function at all critical entry points (`stream_deployment`, `provision_app_jail`, etc.) that only allows alphanumeric characters, dots, hyphens, and underscores, and rejects invalid start/end characters.
+  - ⚡ **Performance Improvement**: Negligible runtime impact (O(n) character scan), but significantly improves security posture by failing early at the gRPC boundary before expensive operations.
 
 ### 🧪 Testing & Reliability
 
