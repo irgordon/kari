@@ -70,15 +70,16 @@ func (m *AppMonitor) performHealthChecks(ctx context.Context) {
 
 	for _, app := range apps {
 		wg.Add(1)
-		sem <- struct{}{} // Acquire
 
 		go func(a domain.Application) {
 			defer wg.Done()
-			defer func() { <-sem }() // Release
 
 			// 🛡️ Jitter: Prevent synchronized spikes
 			time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
-			
+
+			sem <- struct{}{} // Acquire
+			defer func() { <-sem }() // Release
+
 			// 🛡️ Per-check Timeout: Don't let one zombie app hang the worker
 			checkCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 			defer cancel()
