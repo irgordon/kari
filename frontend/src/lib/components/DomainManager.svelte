@@ -15,7 +15,7 @@
 	const domainRegex = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*$/;
 
 	async function addDomain() {
-		if (!canPerform($page.data.user.permissions, 'domains:write')) return;
+		if (!canPerform($page.data.user, 'domains:write')) return;
 		if (!domainRegex.test(newDomain)) {
 			error = 'Invalid domain format.';
 			return;
