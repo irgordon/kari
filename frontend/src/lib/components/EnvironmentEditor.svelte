@@ -44,7 +44,7 @@
 	}
 
 	async function save() {
-		if (!canPerform($page.data.user.permissions, 'apps:write')) return;
+		if (!canPerform($page.data.user, 'apps:write')) return;
 		
 		const invalid = items.find(i => !isValidKey(i.key));
 		if (invalid) {

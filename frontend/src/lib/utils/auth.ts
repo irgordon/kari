@@ -49,20 +49,3 @@ export function canPerform(user: KariUser | null | undefined, requiredPermission
 	});
 }
 
-/**
- * Convenience: Checks if a user has AT LEAST ONE of the required permissions.
- * Useful for rendering menu categories (e.g., "Settings" tab visible if user can manage billing OR users)
- */
-export function canPerformAny(user: KariUser | null | undefined, permissions: string[]): boolean {
-	if (!user) return false;
-	return permissions.some(p => canPerform(user, p));
-}
-
-/**
- * Convenience: Checks if a user has ALL of the required permissions.
- * Useful for complex workflows (e.g., starting a deployment requires both app:write and domains:write)
- */
-export function canPerformAll(user: KariUser | null | undefined, permissions: string[]): boolean {
-	if (!user) return false;
-	return permissions.every(p => canPerform(user, p));
-}

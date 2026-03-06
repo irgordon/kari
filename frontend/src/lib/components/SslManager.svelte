@@ -10,7 +10,7 @@
 	let message = '';
 
 	async function provisionSSL(domainName: string) {
-		if (!canPerform($page.data.user.permissions, 'ssl:write')) return;
+		if (!canPerform($page.data.user, 'ssl:write')) return;
 		
 		processingDomain = domainName;
 		message = `Initiating ACME challenge for ${domainName}...`;
