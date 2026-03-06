@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"kari/api/internal/config"
@@ -77,58 +79,77 @@ func (w *SSLRenewer) checkAndRenew(ctx context.Context) {
 		return
 	}
 
-	renewCount := 0
-	failCount := 0
+	var renewCount int32
+	var failCount int32
+
+	// 🛡️ SLA: Concurrency control via semaphore (max 10 parallel checks)
+	// Prevents overwhelming the filesystem or the ACME provider.
+	sem := make(chan struct{}, 10)
+	var wg sync.WaitGroup
 
 	for _, dom := range domains {
-		// INJECTED: Read the path dynamically from config instead of hardcoding /etc/kari/ssl
-		certPath := fmt.Sprintf("%s/%s/fullchain.pem", w.Config.SSLStorageDir, dom.DomainName)
-		
-		expiresAt, err := utils.GetCertExpiration(certPath)
-		if err != nil {
-			w.Logger.Warn("Could not parse certificate, skipping", 
-				slog.String("domain", dom.DomainName), 
-				slog.String("error", err.Error()),
-			)
-			continue
-		}
+		wg.Add(1)
+		go func(d domain.Domain) {
+			defer wg.Done()
 
-		daysUntilExpiry := time.Until(expiresAt).Hours() / 24
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
 
-		if daysUntilExpiry <= 30 {
-			w.Logger.Info("♻️ Certificate expiring soon, initiating renewal", 
-				slog.String("domain", dom.DomainName),
-				slog.Float64("days_left", daysUntilExpiry),
-			)
+			// 🛡️ IO-Bound: Reading cert from disk inside the worker pool
+			certPath := fmt.Sprintf("%s/%s/fullchain.pem", w.Config.SSLStorageDir, d.DomainName)
 
-			err := w.SSLService.ProvisionCertificate(ctx, dom.UserID, dom.ID)
+			expiresAt, err := utils.GetCertExpiration(certPath)
 			if err != nil {
-				w.Logger.Error("Failed to renew certificate", 
-					slog.String("domain", dom.DomainName),
+				w.Logger.Warn("Could not parse certificate, skipping",
+					slog.String("domain", d.DomainName),
 					slog.String("error", err.Error()),
 				)
-				
-				w.AuditService.LogSystemAlert(
-					ctx, 
-					"ssl_renewal_failed", 
-					"ssl", 
-					dom.ID, 
-					err, 
-					"critical",
-				)
-				
-				failCount++
-				continue
+				return
 			}
-			
-			renewCount++
-		}
+
+			daysUntilExpiry := time.Until(expiresAt).Hours() / 24
+
+			if daysUntilExpiry <= 30 {
+				w.Logger.Info("♻️ Certificate expiring soon, initiating renewal",
+					slog.String("domain", d.DomainName),
+					slog.Float64("days_left", daysUntilExpiry),
+				)
+
+				// 🛡️ Network-Bound: ACME handshake with the provisioner
+				err := w.SSLService.ProvisionCertificate(ctx, d.UserID, d.ID)
+				if err != nil {
+					w.Logger.Error("Failed to renew certificate",
+						slog.String("domain", d.DomainName),
+						slog.String("error", err.Error()),
+					)
+
+					w.AuditService.LogSystemAlert(
+						ctx,
+						"ssl_renewal_failed",
+						"ssl",
+						d.ID,
+						err,
+						"critical",
+					)
+
+					atomic.AddInt32(&failCount, 1)
+					return
+				}
+
+				atomic.AddInt32(&renewCount, 1)
+			}
+		}(dom)
 	}
+	wg.Wait()
 
 	if renewCount > 0 || failCount > 0 {
-		w.Logger.Info("✅ SSL renewal sweep completed", 
-			slog.Int("renewed_count", renewCount),
-			slog.Int("failed_count", failCount),
+		w.Logger.Info("✅ SSL renewal sweep completed",
+			slog.Int("renewed_count", int(renewCount)),
+			slog.Int("failed_count", int(failCount)),
 		)
 	} else {
 		w.Logger.Info("✅ SSL renewal sweep completed. No renewals needed today.")
