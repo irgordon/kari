@@ -13,11 +13,11 @@ import (
 )
 
 type AppMonitor struct {
-	repo       domain.ApplicationRepository
-	auditRepo  domain.AuditRepository
-	httpClient *http.Client
-	logger     *slog.Logger
-	interval   time.Duration
+	repo        domain.ApplicationRepository
+	auditRepo   domain.AuditRepository
+	httpClient  *http.Client
+	logger      *slog.Logger
+	interval    time.Duration
 	concurrency int // 🛡️ SLA: Limit concurrent checks
 }
 
@@ -28,10 +28,10 @@ func NewAppMonitor(
 	interval time.Duration,
 ) *AppMonitor {
 	return &AppMonitor{
-		repo:      repo,
-		auditRepo: audit,
-		logger:    logger,
-		interval:  interval,
+		repo:        repo,
+		auditRepo:   audit,
+		logger:      logger,
+		interval:    interval,
 		concurrency: 10, // 🛡️ SLA: Max 10 simultaneous checks
 		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
@@ -77,13 +77,13 @@ func (m *AppMonitor) performHealthChecks(ctx context.Context) {
 			// 🛡️ Jitter: Prevent synchronized spikes
 			time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
 
-			sem <- struct{}{} // Acquire
+			sem <- struct{}{}        // Acquire
 			defer func() { <-sem }() // Release
 
 			// 🛡️ Per-check Timeout: Don't let one zombie app hang the worker
 			checkCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 			defer cancel()
-			
+
 			m.checkAppHealth(checkCtx, a)
 		}(app)
 	}
@@ -96,9 +96,9 @@ func (m *AppMonitor) checkAppHealth(ctx context.Context, app domain.Application)
 	if healthPath == "" {
 		healthPath = "/health"
 	}
-	
+
 	url := fmt.Sprintf("http://127.0.0.1:%d%s", app.Port, healthPath)
-	
+
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	resp, err := m.httpClient.Do(req)
 
