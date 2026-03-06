@@ -9,14 +9,25 @@ fn validate_domain_format(domain: &str) -> Result<(), String> {
     if domain.is_empty() {
         return Err("Domain cannot be empty".to_string());
     }
+
     if domain.contains("..") || domain.contains('/') || domain.contains('\\') {
         return Err(format!("Zero-Trust: Path traversal detected in domain: '{}'", domain));
     }
-    // Allow alphanumeric, dots, hyphens, underscores.
-    // Reject everything else (including spaces, quotes, brackets, semicolons)
+
+    // Nginx configuration injection prevention:
+    // Strictly allow only alphanumeric, dots, hyphens, and underscores.
+    // Underscores are technically not allowed in DNS hostnames but are allowed in Nginx server_names.
     if !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
         return Err(format!("Zero-Trust: Invalid characters in domain name: '{}'", domain));
     }
+
+    // Ensure it doesn't start or end with a hyphen or dot (basic RFC compliance + Nginx safety)
+    if domain.starts_with('-') || domain.ends_with('-') || domain.starts_with('.') || domain.ends_with('.') {
+         return Err(format!(
+            "Zero-Trust: Invalid domain name format: '{}' (cannot start/end with '-' or '.')", domain
+        ));
+    }
+
     Ok(())
 }
 
@@ -177,6 +188,12 @@ mod tests {
         assert!(validate_domain_format("../foo").is_err());
         assert!(validate_domain_format("foo/bar").is_err());
         assert!(validate_domain_format("foo\\bar").is_err());
+
+        // Invalid start/end characters
+        assert!(validate_domain_format("-example.com").is_err());
+        assert!(validate_domain_format("example.com-").is_err());
+        assert!(validate_domain_format(".example.com").is_err());
+        assert!(validate_domain_format("example.com.").is_err());
 
         // Empty
         assert!(validate_domain_format("").is_err());
