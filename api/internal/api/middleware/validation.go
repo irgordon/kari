@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // 🛡️ Zero-Trust: Input Validation Constants
@@ -19,11 +22,8 @@ const (
 	MaxEnvVarValueLength = 8192
 )
 
-// uuidV4Regex validates strict UUIDv4 format: xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx
-var uuidV4Regex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
-
 // envVarKeyRegex validates env var keys: alphanumeric + underscores only
-var envVarKeyRegex = regexp.MustCompile(`^[A-Z][A-Z0-9_]{0,127}$`)
+var envVarKeyRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,127}$`)
 
 // ValidateTraceID returns middleware that validates the {trace_id} or {id} URL param
 // as a strict UUIDv4 BEFORE it reaches any handler or gRPC layer.
@@ -44,9 +44,10 @@ func ValidateTraceID(paramName string) func(http.Handler) http.Handler {
 				return
 			}
 
-			// 🛡️ Regex validation for strict UUIDv4 format
-			if !uuidV4Regex.MatchString(id) {
-				writeValidationError(w, "Invalid "+paramName+": must be a valid UUIDv4 format (xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx)")
+			// 🛡️ Use google/uuid for robust parsing and version checking
+			u, err := uuid.Parse(id)
+			if err != nil || u.Version() != 4 {
+				writeValidationError(w, "Invalid "+paramName+": must be a valid UUIDv4 (xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx)")
 				return
 			}
 
@@ -100,7 +101,7 @@ func ValidateEnvVars(next http.Handler) http.Handler {
 				return
 			}
 			if !envVarKeyRegex.MatchString(key) {
-				writeValidationError(w, "env_var key must be UPPER_SNAKE_CASE: "+key)
+				writeValidationError(w, "env_var key must be alphanumeric or underscore: "+key)
 				return
 			}
 			if len(value) > MaxEnvVarValueLength {
@@ -123,11 +124,6 @@ func writeValidationError(w http.ResponseWriter, msg string) {
 
 // extractURLParam is a chi-compatible URL param extractor
 func extractURLParam(r *http.Request, name string) string {
-	// chi stores route params in the context
-	ctx := r.Context()
-	if rctx := ctx.Value("chi.URLParams"); rctx != nil {
-		// Fallback: chi v5 uses RouteContext
-	}
-	// Use chi's built-in method
-	return r.PathValue(name)
+	// Standard Chi path parameter extraction
+	return chi.URLParam(r, name)
 }
