@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧹 Code Health
 
 - **Frontend Type Safety**: Introduced strict TypeScript definitions for `Deployment` entities in the SvelteKit frontend, replacing `any` types to prevent runtime errors and improve developer experience.
+- **Strict UUID Validation**: Replaced a missing TODO by adding a robust regex (`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`) in the Go API's validation middleware to strictly enforce canonical UUIDv4 formats, preventing malformed trace IDs from reaching downstream handlers.
 
 ## [1.0.0] - 2026-02-22
 

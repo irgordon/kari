@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -67,7 +68,7 @@ func TestValidateTraceID(t *testing.T) {
 			// Chi path value simulation
 			rctx := chi.NewRouteContext()
 			rctx.URLParams.Add(tt.paramName, tt.paramValue)
-			req = req.WithContext(http.ContextWithValue(req.Context(), chi.RouteCtxKey, rctx))
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
