@@ -64,29 +64,37 @@ func (m *AppMonitor) performHealthChecks(ctx context.Context) {
 		return
 	}
 
-	// 🛡️ SLA: Concurrency control via semaphore
-	sem := make(chan struct{}, m.concurrency)
+	// 🛡️ SLA: Use a worker pool to bound goroutine creation
+	appChan := make(chan domain.Application)
 	var wg sync.WaitGroup
 
-	for _, app := range apps {
+	// Start workers
+	for i := 0; i < m.concurrency; i++ {
 		wg.Add(1)
-
-		go func(a domain.Application) {
+		go func() {
 			defer wg.Done()
+			for app := range appChan {
+				// 🛡️ Jitter: Prevent synchronized spikes, but only for active workers
+				time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
 
-			// 🛡️ Jitter: Prevent synchronized spikes
-			time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
-
-			sem <- struct{}{}        // Acquire
-			defer func() { <-sem }() // Release
-
-			// 🛡️ Per-check Timeout: Don't let one zombie app hang the worker
-			checkCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
-			defer cancel()
-
-			m.checkAppHealth(checkCtx, a)
-		}(app)
+				// 🛡️ Per-check Timeout: Don't let one zombie app hang the worker
+				checkCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+				m.checkAppHealth(checkCtx, app)
+				cancel()
+			}
+		}()
 	}
+
+	// Feed applications to workers
+producerLoop:
+	for _, app := range apps {
+		select {
+		case appChan <- app:
+		case <-ctx.Done():
+			break producerLoop
+		}
+	}
+	close(appChan)
 	wg.Wait()
 }
 
@@ -116,4 +124,17 @@ func (m *AppMonitor) checkAppHealth(ctx context.Context, app domain.Application)
 	}
 }
 
-// ... handleAppFailure and handleAppRecovery remain similar but use structured logging ...
+func (m *AppMonitor) handleAppFailure(ctx context.Context, app domain.Application, err error) {
+	m.logger.Warn("Application health check failed",
+		slog.String("id", app.ID.String()),
+		slog.Any("error", err),
+	)
+	_ = m.repo.UpdateStatus(ctx, app.ID, "failed")
+}
+
+func (m *AppMonitor) handleAppRecovery(ctx context.Context, app domain.Application) {
+	m.logger.Info("Application recovered",
+		slog.String("id", app.ID.String()),
+	)
+	_ = m.repo.UpdateStatus(ctx, app.ID, "running")
+}
