@@ -12,3 +12,12 @@ export interface Deployment {
 	build_command?: string;
 	target_port?: number;
 }
+
+export interface SystemStatus {
+	healthy: boolean;
+	active_jails: number;
+	cpu_usage_percent: number;
+	memory_usage_mb: number;
+	agent_version: string;
+	uptime_seconds: number;
+}
