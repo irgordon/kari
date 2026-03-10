@@ -34,12 +34,8 @@ func Load() *Config {
 	}
 
 	dbURL := getEnv("DATABASE_URL", "")
-	if dbURL == "" {
-		if env == "production" {
-			log.Fatal("🚨 [FATAL] DATABASE_URL environment variable is required in production.")
-		}
-		// Sensible default for local development ONLY
-		dbURL = "postgres://kari_admin:dev_password@localhost:5432/kari?sslmode=disable"
+	if dbURL == "" && env == "production" {
+		log.Fatal("🚨 [FATAL] DATABASE_URL environment variable is required in production.")
 	}
 
 	// 3. 🛡️ Strict CORS: Must be explicitly defined in Production
