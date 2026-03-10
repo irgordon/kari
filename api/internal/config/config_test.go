@@ -13,9 +13,9 @@ func TestLoad_Development(t *testing.T) {
 
 	cfg := Load()
 
-	expectedDB := "postgres://kari_admin:dev_password@localhost:5432/kari?sslmode=disable"
+	expectedDB := ""
 	if cfg.DatabaseURL != expectedDB {
-		t.Errorf("Expected default DB URL %s, got %s", expectedDB, cfg.DatabaseURL)
+		t.Errorf("Expected empty DB URL when unset, got %q", cfg.DatabaseURL)
 	}
 
 	if cfg.Environment != "development" {
@@ -30,6 +30,7 @@ func TestLoad_Production_MissingSecrets(t *testing.T) {
 	os.Setenv("DATABASE_URL", "postgres://prod:prod@prod:5432/db")
 	os.Setenv("JWT_SECRET", "supersecret-at-least-32-chars-long-123")
 	os.Setenv("ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	os.Setenv("CORS_ALLOWED_ORIGINS", "http://prod.example.com")
 
 	defer func() {
 		if r := recover(); r != nil {
