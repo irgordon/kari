@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"kari/api/internal/core/domain"
 	"kari/api/internal/db"
@@ -74,7 +75,7 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Conflict: The profile was modified by another administrator. Please refresh and try again.", http.StatusConflict)
 			
 		// Catch our strict Domain.Validate() errors (e.g., MaxMemory < 128)
-		case err.Error() != "" && contains(err.Error(), "domain validation failed"):
+		case err.Error() != "" && strings.Contains(err.Error(), "domain validation failed"):
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			
 		default:
@@ -91,8 +92,3 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(payload)
 }
 
-// Simple helper to check substring for our domain validation mapping
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && s[:len(substr)] == substr || 
-	       (len(s) > len(substr) && s[0:len(s)-len(substr)] == substr) // Simplistic check, strings.Contains is better but keeping dependencies low
-}

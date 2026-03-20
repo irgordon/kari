@@ -1,5 +1,7 @@
 package domain
 
+import "strings"
+
 // AgentErrorCode maps raw gRPC error messages from the Rust Muscle
 // into human-readable error codes that the Svelte UI can present
 // as styled alerts. This prevents exposing raw system internals to tenants.
@@ -129,27 +131,5 @@ func ClassifyAgentError(rawError string) AgentError {
 
 // contains is a case-insensitive substring check.
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		containsLower(toLower(s), toLower(substr))
-}
-
-func toLower(s string) string {
-	b := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		b[i] = c
-	}
-	return string(b)
-}
-
-func containsLower(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
