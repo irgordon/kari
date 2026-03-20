@@ -34,8 +34,13 @@ func Load() *Config {
 	}
 
 	dbURL := getEnv("DATABASE_URL", "")
-	if dbURL == "" && env == "production" {
-		log.Fatal("🚨 [FATAL] DATABASE_URL environment variable is required in production.")
+	if env == "production" {
+		if dbURL == "" {
+			log.Fatal("🚨 [FATAL] DATABASE_URL environment variable is required in production.")
+		}
+		if strings.Contains(dbURL, "dev_password") {
+			log.Fatal("🚨 [FATAL] DATABASE_URL is using default development credentials.")
+		}
 	}
 
 	// 3. 🛡️ Strict CORS: Must be explicitly defined in Production
