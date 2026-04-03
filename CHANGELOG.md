@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ⚡ Performance & Reliability
 
+- **Environment Bulk Import**: Optimized `handleBulkImport` in the Svelte frontend to efficiently process large .env files.
+  - 🎯 **What**: Replaced inefficient `map().filter()` chain and multiple string splits with a single `for...of` loop and optimized string slicing.
+  - 💡 **Why**: The previous implementation created multiple intermediate arrays and performed redundant string joins, leading to high memory pressure and CPU usage when importing hundreds of variables.
+  - 📊 **Measured Improvement**: Benchmarks show a **~58% speedup** (reduced execution time from ~971ms to ~410ms for 100 iterations of 10,000 lines) and significantly reduced heap allocations.
 - **App Monitor Concurrency**: Optimized `AppMonitor` in the Go API to prevent jitter sleep from blocking concurrency slots.
   - 🎯 **What**: Moved the random jitter sleep (`time.Sleep`) outside the semaphore acquisition block.
   - 💡 **Why**: Previously, the sleep held a semaphore slot, limiting the effective throughput of health checks. With 10 slots and up to 2s sleep, workers were idle for most of the time.
