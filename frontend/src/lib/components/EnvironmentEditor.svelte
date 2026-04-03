@@ -32,15 +32,22 @@
 	function handleBulkImport(e: Event) {
 		const text = (e.target as HTMLTextAreaElement).value;
 		const lines = text.split('\n');
-		const newItems = lines.map(line => {
-			const [key, ...valParts] = line.split('=');
-			const value = valParts.join('=').replace(/^["']|["']$/g, '');
-			if (key && isValidKey(key.trim())) {
-				return { key: key.trim(), value: value.trim(), id: crypto.randomUUID() };
+		const importedItems: typeof items = [];
+
+		for (const line of lines) {
+			const index = line.indexOf('=');
+			if (index === -1) continue;
+
+			const key = line.slice(0, index).trim();
+			if (key && isValidKey(key)) {
+				const value = line.slice(index + 1).trim().replace(/^["']|["']$/g, '').trim();
+				importedItems.push({ key, value, id: crypto.randomUUID() });
 			}
-			return null;
-		}).filter(Boolean);
-		items = [...items, ...newItems];
+		}
+
+		if (importedItems.length > 0) {
+			items = [...items, ...importedItems];
+		}
 	}
 
 	async function save() {
