@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"kari/api/internal/core/utils"
 	agent "kari/api/proto/kari/agent/v1"
 )
 
@@ -307,8 +308,8 @@ func (h *SetupHandler) Finalize(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "All fields are required"})
 		return
 	}
-	if len(req.AdminPassword) < 12 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Password must be at least 12 characters"})
+	if err := utils.ValidatePasswordComplexity(req.AdminPassword); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": err.Error()})
 		return
 	}
 	if len(req.MasterKeyHex) != 64 {

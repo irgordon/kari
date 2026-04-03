@@ -52,7 +52,14 @@
   } | null = null;
 
   // Validation
-  $: passwordValid = adminPassword.length >= 12;
+  $: hasMinLength = adminPassword.length >= 12;
+  $: hasUppercase = /[A-Z]/.test(adminPassword);
+  $: hasLowercase = /[a-z]/.test(adminPassword);
+  $: hasNumber = /[0-9]/.test(adminPassword);
+  $: hasSpecial = /[!@#$%^&*(),.?":{}|<>_+=-]/.test(adminPassword);
+  $: passwordValid =
+    hasMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial;
+
   $: passwordsMatch =
     adminPassword === confirmPassword && confirmPassword.length > 0;
   $: emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail);
@@ -411,7 +418,7 @@
               <label
                 for="adminPassword"
                 class="block text-xs text-slate-500 mb-2 font-bold uppercase tracking-wider"
-                >Master Password (≥12 chars)</label
+                >Master Password</label
               >
               <input
                 id="adminPassword"
@@ -420,10 +427,44 @@
                 class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5
                      focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               />
-              {#if adminPassword && !passwordValid}
-                <p class="text-rose-400 text-xs mt-1">
-                  Must be at least 12 characters
-                </p>
+              {#if adminPassword}
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                  <div
+                    class="flex items-center gap-1.5 text-[10px] {hasMinLength
+                      ? 'text-emerald-400'
+                      : 'text-slate-500'}"
+                  >
+                    <CheckCircle size={10} /> 12+ Characters
+                  </div>
+                  <div
+                    class="flex items-center gap-1.5 text-[10px] {hasUppercase
+                      ? 'text-emerald-400'
+                      : 'text-slate-500'}"
+                  >
+                    <CheckCircle size={10} /> Uppercase
+                  </div>
+                  <div
+                    class="flex items-center gap-1.5 text-[10px] {hasLowercase
+                      ? 'text-emerald-400'
+                      : 'text-slate-500'}"
+                  >
+                    <CheckCircle size={10} /> Lowercase
+                  </div>
+                  <div
+                    class="flex items-center gap-1.5 text-[10px] {hasNumber
+                      ? 'text-emerald-400'
+                      : 'text-slate-500'}"
+                  >
+                    <CheckCircle size={10} /> Number
+                  </div>
+                  <div
+                    class="flex items-center gap-1.5 text-[10px] {hasSpecial
+                      ? 'text-emerald-400'
+                      : 'text-slate-500'}"
+                  >
+                    <CheckCircle size={10} /> Special Char
+                  </div>
+                </div>
               {/if}
             </div>
             <div>
