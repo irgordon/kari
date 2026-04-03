@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"crypto/rand"
 	"kari/api/internal/core/domain"
-	"math/rand"
+	"math/big"
 )
 
 type AppMonitor struct {
@@ -75,7 +76,13 @@ func (m *AppMonitor) performHealthChecks(ctx context.Context) {
 			defer wg.Done()
 			for app := range appChan {
 				// 🛡️ Jitter: Prevent synchronized spikes, but only for active workers
-				time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
+				// Use cryptographically secure random number for jitter
+				n, err := rand.Int(rand.Reader, big.NewInt(2000))
+				jitter := int64(0)
+				if err == nil {
+					jitter = n.Int64()
+				}
+				time.Sleep(time.Duration(jitter) * time.Millisecond)
 
 				// 🛡️ Per-check Timeout: Don't let one zombie app hang the worker
 				checkCtx, cancel := context.WithTimeout(ctx, 6*time.Second)

@@ -2,7 +2,8 @@ package workers
 
 import (
 	"context"
-	"math/rand"
+	"crypto/rand"
+	"math/big"
 	"runtime"
 	"sync"
 	"testing"
@@ -20,7 +21,12 @@ func simulateOriginal(numApps int, concurrency int, jitterMax time.Duration, wor
 			defer wg.Done()
 
 			// Jitter BEFORE semaphore acquisition
-			time.Sleep(time.Duration(rand.Intn(int(jitterMax))))
+			n, err := rand.Int(rand.Reader, big.NewInt(int64(jitterMax)))
+			jitter := int64(0)
+			if err == nil {
+				jitter = n.Int64()
+			}
+			time.Sleep(time.Duration(jitter))
 
 			sem <- struct{}{}
 			defer func() { <-sem }()
@@ -46,7 +52,12 @@ func simulateWorkerPool(ctx context.Context, numApps int, concurrency int, jitte
 			defer wg.Done()
 			for range appChan {
 				// Jitter in worker
-				time.Sleep(time.Duration(rand.Intn(int(jitterMax))))
+				n, err := rand.Int(rand.Reader, big.NewInt(int64(jitterMax)))
+				jitter := int64(0)
+				if err == nil {
+					jitter = n.Int64()
+				}
+				time.Sleep(time.Duration(jitter))
 				// Simulate work
 				time.Sleep(workDur)
 			}
