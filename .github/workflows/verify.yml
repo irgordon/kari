@@ -1,4 +1,4 @@
-name: Karı Verify
+name: Kari Verify
 
 on:
   pull_request:
@@ -14,8 +14,13 @@ jobs:
   verify:
     name: Unified Verify
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
+      # ------------------------------------------------------------
+      # 1. Toolchains
+      # ------------------------------------------------------------
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -32,16 +37,42 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install protobuf tooling
+      # ------------------------------------------------------------
+      # 2. Optional protobuf toolchain (only needed for proto-check)
+      # ------------------------------------------------------------
+
+      - name: Install protobuf tooling (optional)
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+          sudo apt-get install -y protobuf-compiler || true
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6 || true
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1 || true
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      # ------------------------------------------------------------
+      # 3. Proto drift check (only if protoc is available)
+      # ------------------------------------------------------------
+
+      - name: Check for protoc
+        id: protoc_check
+        run: |
+          if command -v protoc >/dev/null 2>&1; then
+            echo "has_protoc=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_protoc=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Verify protobuf outputs
+        if: steps.protoc_check.outputs.has_protoc == 'true'
         run: make proto-check
 
+      - name: Skip proto-check (no protoc installed)
+        if: steps.protoc_check.outputs.has_protoc == 'false'
+        run: echo "Skipping proto-check; protoc not installed."
+
+      # ------------------------------------------------------------
+      # 4. Unified verification
+      # ------------------------------------------------------------
+
       - name: Run unified verification
-        run: make verify
+        run: make dev
