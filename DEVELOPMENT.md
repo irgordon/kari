@@ -66,6 +66,16 @@ sequenceDiagram
 
 ---
 
+## 🚀 First Run (Single Command)
+
+```bash
+./scripts/bootstrap.sh
+```
+
+This script validates your local toolchain and runs `make dev` as the canonical deterministic preflight path.
+
+---
+
 ## 🚀 Rapid Start (TL;DR)
 
 ```bash
@@ -145,10 +155,13 @@ To see exactly what the **Brain** is thinking versus what the **Muscle** is doin
 
 ## 🏁 Quality Assurance (QA)
 
-Before submitting a Pull Request, ensure the **2026 SLA** is met:
+Before submitting a Pull Request, run the unified validation pipeline:
 
-1. **Go**: `cd api && go test ./...`
-2. **Rust**: `cd agent && cargo test`
-3. **UI**: `cd frontend && npm run check`
+1. **Primary Path**: `make dev`
+   - Runs env normalization, optional proto checks, unified tests, and reproducibility guard in one command.
+2. **Optional Deep Checks**: `make verify` and `make proto-check`
+   - Keep these for targeted troubleshooting, but `make dev` is the default human workflow.
+
+If `make dev` fails, fix the root cause before opening a PR.
 
 ---
