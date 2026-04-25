@@ -4,7 +4,7 @@ syntax = "proto3";
 package kari.agent.v1;
 
 // 🛡️ SOLID: Namespaced for Go internal visibility
-option go_package = "kari/api/internal/grpc/rustagent;rustagent";
+option go_package = "github.com/irgordon/kari/api/internal/grpc/rustagent;rustagent";
 
 // ==============================================================================
 // 1. The gRPC Service Definition (The Contract)
