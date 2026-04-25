@@ -22,8 +22,13 @@ const (
 	MaxEnvVarValueLength = 8192
 )
 
-// envVarKeyRegex validates env var keys: alphanumeric + underscores only
-var envVarKeyRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,127}$`)
+var (
+	// uuidV4Regex validates strict UUIDv4 format: xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx
+	uuidV4Regex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
+
+	// envVarKeyRegex validates env var keys: alphanumeric + underscores only
+	envVarKeyRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,127}$`)
+)
 
 // ValidateTraceID returns middleware that validates the {trace_id} or {id} URL param
 // as a strict UUIDv4 BEFORE it reaches any handler or gRPC layer.
@@ -41,6 +46,12 @@ func ValidateTraceID(paramName string) func(http.Handler) http.Handler {
 			// 🛡️ Length check first (fast path rejection)
 			if len(id) != MaxTraceIDLength {
 				writeValidationError(w, "Invalid "+paramName+": must be exactly 36 characters (UUIDv4)")
+				return
+			}
+
+			// 🛡️ Strict regex check for canonical UUIDv4 format
+			if !uuidV4Regex.MatchString(id) {
+				writeValidationError(w, "Invalid "+paramName+": must be a valid strict UUIDv4 (xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx)")
 				return
 			}
 
