@@ -179,6 +179,13 @@ By implementing the Single Layer Abstraction (SLA) principle, adding a new rever
 
 Our developer experience is engineered for speed and determinism. We provide two distinct workflows depending on your testing needs.
 
+### Safe Defaults
+
+- No custom config is required for normal local runs.
+- `make dev` is the recommended single-command validation surface.
+- Protobuf tooling is optional unless you are changing `.proto` definitions.
+- Advanced security/governance controls remain available but are not required for first use.
+
 ### Prerequisites
 
 - Docker & Docker Compose (v2+)
@@ -198,7 +205,21 @@ cd kari
 
 ```
 
-2. **Generate the gRPC Protobufs:**
+2. **Optional first-run bootstrap (one command):**
+
+```bash
+./scripts/bootstrap.sh
+
+```
+
+3. **Generate the gRPC Protobufs (only if modifying `.proto` contracts):**
+
+```bash
+make proto
+
+```
+
+4. **Run the single-command preflight (recommended):**
 
 ```bash
 make proto
@@ -264,6 +285,7 @@ Dive deeper into the engineering principles behind Karı:
 - [The Muscle API (gRPC Schema)](https://www.google.com/search?q=docs/AGENT_API.md)
 - [Provider Integrations](https://www.google.com/search?q=docs/PROVIDERS.md)
 - [System Requirements & Pre-flight Checks](https://www.google.com/search?q=docs/SYSTEM_CHECK.md)
+- [Quickstart: Local to Production](https://www.google.com/search?q=docs/QUICKSTART_LOCAL_PRODUCTION.md)
 
 ---
 

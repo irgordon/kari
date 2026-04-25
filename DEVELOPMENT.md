@@ -66,6 +66,16 @@ sequenceDiagram
 
 ---
 
+## 🚀 First Run (Single Command)
+
+```bash
+./scripts/bootstrap.sh
+```
+
+This script validates your local toolchain and runs `make dev` as the canonical deterministic preflight path.
+
+---
+
 ## 🚀 Rapid Start (TL;DR)
 
 ```bash
