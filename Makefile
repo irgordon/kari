@@ -3,7 +3,7 @@
 # 🛡️ SLA: Single-command lifecycle with mandatory security audits
 # ==============================================================================
 
-.PHONY: help gen-secrets audit build build-prod up down restart clean logs proto proto-check verify
+.PHONY: help gen-secrets audit build build-prod up down restart clean logs proto proto-check frontend-setup verify dev
 
 # Default target: Shows available commands
 help:
@@ -93,6 +93,11 @@ proto-check:
 	@echo "🔍 Validating protobuf stubs are up to date..."
 	@chmod +x scripts/check-proto-drift.sh && ./scripts/check-proto-drift.sh
 
+# 📦 Frontend dependency bootstrap (deterministic install)
+frontend-setup:
+	@echo "📦 Installing frontend dependencies..."
+	@npm --prefix frontend ci
+
 # ✅ Unified Local/CI Validation
 verify:
 	@echo "🧪 Running unified verification pipeline..."
@@ -100,7 +105,9 @@ verify:
 	@cd agent && cargo fmt -- --check
 	@cd agent && cargo clippy --all-targets --all-features
 	@cd agent && cargo test
-	@npm --prefix frontend ci
 	@npm --prefix frontend run check
 	@npm --prefix frontend run test -- --run
 	@echo "✅ verify completed"
+
+# 🧭 Single entrypoint for local/CI development verification
+dev: frontend-setup verify

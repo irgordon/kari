@@ -1,109 +1,86 @@
 # Project State Review & Validation (2026-04-25)
 
 ## Scope
-This review validates the repository state after the prior phase recommendations from `docs/PROJECT_STATE_REVIEW_2026-04-24.md`, using local build/test checks and static repo inspection.
+This review validates the current repository state against the phase plan (A-D), with emphasis on the two critical blockers:
+
+1. Go module + proto import mismatch.
+2. Frontend dependency bootstrap on clean checkout.
 
 ## Validation Checks Run
 
-1. `go test ./...` (repo root)
-2. `cargo test` (`agent/`)
-3. `npm --prefix frontend run test -- --run`
-4. `npm --prefix frontend run check`
+1. `go test ./...`
+2. `make dev`
+3. Static inspection of `go.mod`, `Makefile`, and gRPC/proto paths.
 
-## Current State Summary
+## Current State vs Plan
 
-### 1) Backend (Go API) remains blocked for reproducible local builds
+### Phase A — Deterministic Backend Recovery (**still blocked**)
 
-`go test ./...` still fails early due to:
-- missing module dependencies from `go.mod`/`go.sum` state (many packages unresolved), and
-- unresolved internal gRPC import path (`kari/api/internal/grpc/rustagent`).
+#### A1 — Normalize Go module state: **❌ blocked**
 
-This confirms the same core blocker identified previously: backend dependency + protobuf integration is still not fully normalized for clean-checkout validation.
+Observed on April 25, 2026:
+- `go test ./...` fails due to missing external deps from `go.mod` / `go.sum`.
+- Internal imports still reference `kari/...` while module is `github.com/irgordon/kari`.
+- Import `kari/api/internal/grpc/rustagent` fails and generated Go stubs directory is absent.
 
-### 2) Agent (Rust) is healthy and test-passing
+This confirms the primary blocker remains unresolved.
 
-`cargo test` in `agent/` passes with 18/18 tests green. The agent remains the most stable and verifiable subsystem.
+#### A2 — Proto generation correctness: **🔶 mostly complete, but operationally blocked**
 
-Observed warnings are non-blocking but indicate cleanup debt (unused imports/traits/fields).
+- Scripts include module-aware generation logic and drift guard.
+- In this environment, generation is skipped unless `protoc-gen-go` and `protoc-gen-go-grpc` are installed.
+- Go stubs required by backend are not currently present in-tree.
 
-### 3) Frontend verification remains environment-fragile
+#### A3 — Commit generated proto artifacts: **❌ blocked on A1/A2 execution**
 
-Frontend test/check commands fail in this clean checkout because frontend dependencies have not been installed yet (`frontend/node_modules` is missing), so package-provided binaries such as `vitest` and `svelte-kit` are not available until `npm ci` is run.
-
-This indicates the repo still lacks a mandatory bootstrap/verify path that installs frontend dependencies before checks run.
-
-### 4) Baseline orchestration maturity is still partial
-
-The root `Makefile` still focuses on runtime lifecycle (`deploy`, `build`, `up`) and protobuf generation, but no single `verify` target exists for deterministic local CI-like validation across all layers.
-
-## Delta vs Previous Review (2026-04-24)
-
-- **No material change** in the highest-priority blocker (Go backend reproducibility).
-- **Rust agent stability remains strong.**
-- **Frontend checks are still not turnkey from current checkout state.**
-
-Conclusion: the project is still in a partially integrated state, with the prior review's "Phase 0 goals" now represented by the immediate Phase A work and not yet fully completed.
+- Rust descriptor artifact path is wired in script.
+- Go generated artifacts are not currently committed under `api/internal/grpc/rustagent`.
 
 ---
 
-## Recommended Next Phases
+### Phase B — Unified Developer Validation Path (**improving**)
 
-### Phase A (Immediate: 1-2 days) — Reproducible Backend Recovery
+#### B1 — Single entrypoint (`make dev`): **✔️ now implemented in this review pass**
 
-Goal: make `go test ./...` deterministic from clean checkout.
+Changes made during this review:
+- Added `frontend-setup` target using deterministic install:
+  - `npm --prefix frontend ci`
+- Added `dev` target:
+  - `dev: frontend-setup verify`
+- Removed duplicate frontend install from `verify` so bootstrap is centralized in `frontend-setup`.
 
-Actions:
-1. Finalize canonical Go module strategy (single module root and committed lockfile artifacts).
-2. Run dependency resolution and commit `go.sum` with pinned versions.
-3. Regenerate protobuf/gRPC artifacts and align internal import path references so `kari/api/internal/grpc/rustagent` resolves consistently.
-4. Add a guard check in CI that fails if generated proto outputs drift.
+#### B2 — CI alignment: **🔶 partial**
 
-Exit criteria:
-- `go test ./...` executes without module/proto import failures on fresh clone.
+- CI already runs `make dev`, but this previously failed immediately because `dev` target did not exist.
+- With `dev` target now present, CI progresses further, but remains blocked by backend module/import failures (Phase A).
 
-### Phase B (Short: 2-4 days) — Unified Developer Validation Path
+#### B3 — Frontend reproducibility: **✔️ addressed in Makefile**
 
-Goal: one command to validate all stacks before merge.
+- Clean-checkout frontend dependency bootstrap is now explicit and mandatory via `frontend-setup`.
+- This resolves the second critical blocker at workflow level.
 
-Actions:
-1. Add `make verify` target that runs:
-   - Go test/build checks,
-   - Rust fmt/clippy/test,
-   - Frontend install + check + test.
-2. Ensure frontend verify step performs dependency bootstrap (`npm ci`) before test/check in CI.
-3. Document the exact local preflight workflow in `README.md` and `DEVELOPMENT.md`.
+---
 
-Exit criteria:
-- New contributor can run one command from a clean checkout and get deterministic pass/fail feedback.
+### Phase C — Integration Reliability Hardening: **❌ not started**
 
-### Phase C (Medium: 1-2 weeks) — Integration Reliability Hardening
+No integration test harness for API ↔ Agent deterministic behavior was identified in this pass.
 
-Goal: reduce deployment/runtime integration risk.
+### Phase D — Operational Readiness: **❌ not started**
 
-Actions:
-1. Add API↔Agent integration tests for happy-path and failure-path gRPC interactions.
-2. Implement deterministic rollback/cleanup assertions for deployment failures.
-3. Address concurrency scaling debt from prior audit notes (deployment queue bottlenecks, worker fan-out controls).
+No additional telemetry/SLO automation or runbook finalization changes were identified in this pass.
 
-Exit criteria:
-- Integration tests become required CI gate for release branches.
+## Priority-Ordered Next Actions
 
-### Phase D (Readiness: 2-3 weeks) — Operations & Security Automation
+1. **Fix Go module/import normalization (A1)**
+   - Choose one canonical import root and rewrite all internal Go imports to match `go.mod`.
+   - Populate `go.mod`/`go.sum` with required dependencies.
+2. **Generate and commit Go gRPC stubs (A3)**
+   - Ensure `api/internal/grpc/rustagent/*.go` exists and matches `go_package` + module path.
+3. **Re-run full deterministic path**
+   - `make dev`
+   - CI verify workflow should then become meaningful for regression prevention.
 
-Goal: improve production confidence and incident recoverability.
+## Conclusion
 
-Actions:
-1. Introduce SLO-focused telemetry (deployment latency/error rates, reconnect rates).
-2. Add automated policy checks for security posture assumptions.
-3. Finalize operator runbooks for failed deploys, stuck jobs, and agent unavailability.
-
-Exit criteria:
-- SLO dashboards and runbooks are available and referenced by release process.
-
-## Practical Next 5 Tasks
-
-1. Add and commit Go dependency lock state (`go.sum`) and resolve imports.
-2. Standardize proto generation path and commit generated artifacts.
-3. Implement `make verify` and wire into CI.
-4. Update docs with clean-checkout workflow.
-5. Open a follow-up issue for Rust warning cleanup (non-blocking debt).
+- **Blocker #2 (frontend bootstrap)** is now fixed in the repository workflow by introducing `frontend-setup` and wiring `dev` through it.
+- **Blocker #1 (Go module + proto imports)** remains the primary production blocker and must be resolved next before Phase C/D work is worthwhile.
