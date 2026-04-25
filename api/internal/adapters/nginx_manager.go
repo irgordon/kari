@@ -11,7 +11,7 @@ import (
 
 	"kari/api/internal/config"
 	"kari/api/internal/core/domain"
-	pb "kari/api/proto/kari/agent/v1" // Aliased for clarity
+	pb "kari/api/internal/grpc/rustagent" // Aliased for clarity
 )
 
 // ==============================================================================
@@ -71,7 +71,7 @@ func (m *NginxManager) ApplyConfig(ctx context.Context, appConfig domain.WebServ
 	}
 
 	configPath := fmt.Sprintf("%s/%s.conf", m.Config.NginxConfPath, appConfig.DomainName)
-	
+
 	writeReq := &pb.FileWriteRequest{
 		TraceId:      fmt.Sprintf("nginx-%s", appConfig.DomainName),
 		AbsolutePath: configPath,
@@ -106,7 +106,7 @@ func (m *NginxManager) RemoveConfig(ctx context.Context, domainName string) erro
 	}
 
 	configPath := fmt.Sprintf("%s/%s.conf", m.Config.NginxConfPath, domainName)
-	
+
 	removeReq := &pb.PackageRequest{
 		Command: "rm",
 		Args:    []string{"-f", configPath},
@@ -121,7 +121,7 @@ func (m *NginxManager) RemoveConfig(ctx context.Context, domainName string) erro
 		Action:      pb.ServiceAction_RELOAD,
 	}
 	_, err := m.AgentClient.ManageService(ctx, reloadReq)
-	
+
 	return err
 }
 

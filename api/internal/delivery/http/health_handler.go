@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"kari/api/proto/agent"
+	agent "kari/api/internal/grpc/rustagent"
 )
 
 type HealthHandler struct {
@@ -34,7 +34,7 @@ func (h *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		st, ok := status.FromError(err)
-		
+
 		// 🚨 Forensic Analysis: Why did the link fail?
 		errorMessage := "unhealthy: gRPC link severed"
 		if ok {

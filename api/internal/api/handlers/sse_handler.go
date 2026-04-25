@@ -7,7 +7,7 @@ import (
 	// "time"
 
 	"github.com/gin-gonic/gin"
-	agent "kari/api/proto/kari/agent/v1"
+	agent "kari/api/internal/grpc/rustagent"
 	"log/slog"
 )
 

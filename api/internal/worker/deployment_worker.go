@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"kari/api/internal/core/domain"
-	"kari/api/internal/core/domain"
-	"kari/api/proto/agent" // Generated gRPC client
+	agent "kari/api/internal/grpc/rustagent" // Generated gRPC client
 )
 
 // Broadcaster abstracts the telemetry hub for dependency inversion
 type Broadcaster interface {
 	Broadcast(deploymentID string, message string)
+	RegisterCancel(deploymentID string, cancel context.CancelFunc)
 }
 
 // DeploymentWorker orchestrates the lifecycle of an application deployment.
@@ -87,7 +87,7 @@ func (w *DeploymentWorker) processNextTask(ctx context.Context) {
 			return
 		}
 		sshKey = string(decrypted)
-		
+
 		// Hygiene: Best effort to clear the string from memory after gRPC call (later)
 		// Go strings are immutable, but we ensure no permanent pointers remain.
 	}

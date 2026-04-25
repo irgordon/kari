@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"kari/api/internal/core/domain"
-	pb "kari/api/proto/kari/agent/v1"
+	pb "kari/api/internal/grpc/rustagent"
 )
 
 type ApplicationService struct {
@@ -45,9 +45,9 @@ func (s *ApplicationService) Deploy(ctx context.Context, appID uuid.UUID, userID
 	// Note: Fallback to current timestamp if request_start is missing from context
 	reqStart, _ := ctx.Value("request_start").(int64)
 	traceID := fmt.Sprintf("dep-%s-%d", app.ID.String()[:8], reqStart)
-	
-	s.logger.Info("Starting deployment", 
-		slog.String("app", app.Name), 
+
+	s.logger.Info("Starting deployment",
+		slog.String("app", app.Name),
 		slog.String("trace_id", traceID))
 
 	// 3. Prepare the gRPC Stream with the Rust Muscle
@@ -110,8 +110,8 @@ func (s *ApplicationService) DeleteApplication(ctx context.Context, appID uuid.U
 	hasSuperiorRank := actorRank < app.OwnerRank
 
 	if !isOwner && !hasSuperiorRank {
-		s.logger.Warn("Forbidden deletion attempt", 
-			slog.String("app_id", appID.String()), 
+		s.logger.Warn("Forbidden deletion attempt",
+			slog.String("app_id", appID.String()),
 			slog.String("actor", actorID.String()))
 		return errors.New("forbidden: you do not have authority to delete this resource")
 	}
