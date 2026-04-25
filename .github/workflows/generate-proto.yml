@@ -1,11 +1,15 @@
 name: Generate Proto
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   workflow_dispatch:
 
 jobs:
   generate:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -25,8 +29,15 @@ jobs:
       - name: Generate Proto
         run: make proto
 
+      - name: Tidy Go Modules
+        run: go mod tidy
+
       - name: Upload Generated Files
         uses: actions/upload-artifact@v4
         with:
           name: generated-proto
-          path: api/internal/grpc/rustagent/*.pb.go
+          path: |
+            api/internal/grpc/rustagent/*.pb.go
+            go.mod
+            go.sum
+            agent/src/proto/agent_descriptor.bin
