@@ -28,9 +28,9 @@ Observed warnings are non-blocking but indicate cleanup debt (unused imports/tra
 
 ### 3) Frontend verification remains environment-fragile
 
-Frontend test/check commands fail in this checkout because toolchain binaries are unavailable locally (`vitest`, `svelte-kit` not found).
+Frontend test/check commands fail in this clean checkout because frontend dependencies have not been installed yet (`frontend/node_modules` is missing), so package-provided binaries such as `vitest` and `svelte-kit` are not available until `npm ci` is run.
 
-This indicates the repo still lacks a mandatory bootstrap/verify path that ensures frontend dependencies are present before checks run.
+This indicates the repo still lacks a mandatory bootstrap/verify path that installs frontend dependencies before checks run.
 
 ### 4) Baseline orchestration maturity is still partial
 
@@ -42,26 +42,26 @@ The root `Makefile` still focuses on runtime lifecycle (`deploy`, `build`, `up`)
 - **Rust agent stability remains strong.**
 - **Frontend checks are still not turnkey from current checkout state.**
 
-Conclusion: the project is still in a partially integrated state, with Phase 0 goals not yet fully completed.
+Conclusion: the project is still in a partially integrated state, with the prior review's "Phase 0 goals" now represented by the immediate Phase A work and not yet fully completed.
 
 ---
 
 ## Recommended Next Phases
 
-## Phase A (Immediate: 1-2 days) — Reproducible Backend Recovery
+### Phase A (Immediate: 1-2 days) — Reproducible Backend Recovery
 
 Goal: make `go test ./...` deterministic from clean checkout.
 
 Actions:
 1. Finalize canonical Go module strategy (single module root and committed lockfile artifacts).
 2. Run dependency resolution and commit `go.sum` with pinned versions.
-3. Regenerate protobuf/grpc artifacts and align internal import path references so `kari/api/internal/grpc/rustagent` resolves consistently.
+3. Regenerate protobuf/gRPC artifacts and align internal import path references so `kari/api/internal/grpc/rustagent` resolves consistently.
 4. Add a guard check in CI that fails if generated proto outputs drift.
 
 Exit criteria:
 - `go test ./...` executes without module/proto import failures on fresh clone.
 
-## Phase B (Short: 2-4 days) — Unified Developer Validation Path
+### Phase B (Short: 2-4 days) — Unified Developer Validation Path
 
 Goal: one command to validate all stacks before merge.
 
@@ -76,7 +76,7 @@ Actions:
 Exit criteria:
 - New contributor can run one command from a clean checkout and get deterministic pass/fail feedback.
 
-## Phase C (Medium: 1-2 weeks) — Integration Reliability Hardening
+### Phase C (Medium: 1-2 weeks) — Integration Reliability Hardening
 
 Goal: reduce deployment/runtime integration risk.
 
@@ -88,7 +88,7 @@ Actions:
 Exit criteria:
 - Integration tests become required CI gate for release branches.
 
-## Phase D (Readiness: 2-3 weeks) — Operations & Security Automation
+### Phase D (Readiness: 2-3 weeks) — Operations & Security Automation
 
 Goal: improve production confidence and incident recoverability.
 
