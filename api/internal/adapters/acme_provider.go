@@ -19,7 +19,7 @@ import (
 
 	"kari/api/internal/config"
 	// Assuming the generated protobuf package is aliased as pb
-	pb "kari/api/proto/kari/agent/v1" 
+	pb "kari/api/internal/grpc/rustagent"
 )
 
 // ==============================================================================
@@ -121,12 +121,12 @@ func (p *AcmeProvider) ProvisionCertificate(ctx context.Context, email, domainNa
 	}
 
 	legoCfg := lego.NewConfig(&user)
-	
+
 	// 🛡️ Environment Agnostic: URL injected via configuration
 	if p.Config.AcmeDirectoryUrl != "" {
 		legoCfg.CADirURL = p.Config.AcmeDirectoryUrl
 	}
-	
+
 	client, err := lego.NewClient(legoCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create lego client: %w", err)
@@ -140,7 +140,7 @@ func (p *AcmeProvider) ProvisionCertificate(ctx context.Context, email, domainNa
 		WebUser:     p.Config.WebUser,
 		WebGroup:    p.Config.WebGroup,
 	}
-	
+
 	err = client.Challenge.SetHTTP01Provider(provider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set http01 provider: %w", err)
@@ -156,7 +156,7 @@ func (p *AcmeProvider) ProvisionCertificate(ctx context.Context, email, domainNa
 		Domains: []string{domainName},
 		Bundle:  true,
 	}
-	
+
 	certificates, err := client.Certificate.Obtain(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain certificate for %s: %w", domainName, err)
@@ -169,7 +169,7 @@ func (p *AcmeProvider) ProvisionCertificate(ctx context.Context, email, domainNa
 	})
 
 	// 🛡️ Memory Safety: Best-Effort Plaintext Zeroing in Go
-	// We physically overwrite the byte array with zeros so it is destroyed 
+	// We physically overwrite the byte array with zeros so it is destroyed
 	// before the Garbage Collector even runs.
 	for i := range certificates.PrivateKey {
 		certificates.PrivateKey[i] = 0

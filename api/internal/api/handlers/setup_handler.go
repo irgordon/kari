@@ -16,7 +16,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"kari/api/internal/core/utils"
-	agent "kari/api/proto/kari/agent/v1"
+	agent "kari/api/internal/grpc/rustagent"
 )
 
 // ==============================================================================

@@ -21,11 +21,11 @@ import (
 	"kari/api/internal/config"
 	"kari/api/internal/core/services"
 	"kari/api/internal/db/postgres"
+	agent "kari/api/internal/grpc/rustagent"
 	"kari/api/internal/infrastructure/crypto"
 	"kari/api/internal/telemetry"
 	"kari/api/internal/worker"
 	"kari/api/internal/workers"
-	agent "kari/api/proto/kari/agent/v1"
 )
 
 func main() {
@@ -89,7 +89,7 @@ func main() {
 			os.Exit(1)
 		}
 		logger.Info("🔧 SETUP MODE: System is unconfigured. Access the wizard at:")
-		logger.Info("   http://localhost:"+cfg.Port+"/setup?token="+setupToken)
+		logger.Info("   http://localhost:" + cfg.Port + "/setup?token=" + setupToken)
 	}
 
 	// --- 4. Hardened Dependency Injection ---
@@ -138,12 +138,12 @@ func main() {
 
 	// --- 6. HTTP Gateway ---
 	mux := router.NewRouter(router.RouterConfig{
-		AllowedOrigins:  cfg.AllowedOrigins,
-		AuthHandler:     authHandler,
-		DeployHandler:   deployHandler,
-		SetupHandler:    setupHandler,
-		AuthMiddleware:  authMiddleware,
-		Logger:          logger,
+		AllowedOrigins: cfg.AllowedOrigins,
+		AuthHandler:    authHandler,
+		DeployHandler:  deployHandler,
+		SetupHandler:   setupHandler,
+		AuthMiddleware: authMiddleware,
+		Logger:         logger,
 	})
 
 	server := &http.Server{

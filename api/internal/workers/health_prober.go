@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"kari/api/proto/agent"
+	agent "kari/api/internal/grpc/rustagent"
 )
 
 // HealthCache stores the latest system status from the Rust Muscle.
