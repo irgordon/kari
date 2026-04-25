@@ -1,0 +1,29 @@
+name: Generate Frontend Lockfile
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies and regenerate lockfile
+        run: |
+          npm --prefix frontend install
+
+      - name: Upload updated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-lockfile
+          path: frontend/package-lock.json
