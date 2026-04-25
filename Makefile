@@ -3,7 +3,7 @@
 # 🛡️ SLA: Single-command lifecycle with mandatory security audits
 # ==============================================================================
 
-.PHONY: help gen-secrets audit build build-prod up down restart clean logs proto proto-check verify reproducible dev
+.PHONY: help gen-secrets audit build build-prod up down restart clean logs proto proto-check verify
 
 # Default target: Shows available commands
 help:
@@ -25,8 +25,6 @@ help:
 	@echo "  proto           - 🔄 Regenerate gRPC protobuf stubs"
 	@echo "  proto-check     - 🔍 Fail if protobuf outputs are stale"
 	@echo "  verify          - ✅ Run unified Go/Rust/Frontend validation"
-	@echo "  reproducible    - ♻️  Check generated/repo state determinism"
-	@echo "  dev             - 🧭 One-command local deterministic workflow"
 
 # 🚀 The Master Lifecycle (Development)
 deploy: gen-secrets audit build up
@@ -106,24 +104,3 @@ verify:
 	@npm --prefix frontend run check
 	@npm --prefix frontend run test -- --run
 	@echo "✅ verify completed"
-
-
-# ♻️ Reproducibility Guard
-reproducible:
-	@echo "♻️ Validating deterministic repository state..."
-	@git diff --exit-code
-	@echo "✅ Reproducibility check passed (no uncommitted drift)."
-
-# 🧭 One-command developer workflow
-dev: gen-secrets
-	@echo "🧭 Running one-command developer workflow..."
-	@if command -v protoc >/dev/null 2>&1 && command -v protoc-gen-go >/dev/null 2>&1 && command -v protoc-gen-go-grpc >/dev/null 2>&1; then \
-		echo "🔄 Protobuf toolchain detected; running proto + drift checks..."; \
-		$(MAKE) proto; \
-		$(MAKE) proto-check; \
-	else \
-		echo "ℹ️  Protobuf toolchain not fully installed; skipping proto steps (safe unless editing .proto)."; \
-	fi
-	@$(MAKE) verify
-	@$(MAKE) reproducible
-	@echo "✅ dev workflow complete."

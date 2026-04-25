@@ -40,5 +40,8 @@ jobs:
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Run one-command developer validation
-        run: make dev
+      - name: Verify protobuf outputs
+        run: make proto-check
+
+      - name: Run unified verification
+        run: make verify
