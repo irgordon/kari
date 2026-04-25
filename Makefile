@@ -3,7 +3,7 @@
 # 🛡️ SLA: Single-command lifecycle with mandatory security audits
 # ==============================================================================
 
-.PHONY: help gen-secrets audit build build-prod up down restart clean logs proto
+.PHONY: help gen-secrets audit build build-prod up down restart clean logs proto proto-check verify
 
 # Default target: Shows available commands
 help:
@@ -23,6 +23,8 @@ help:
 	@echo "  down            - ⬇️  Stop and remove containers"
 	@echo "  clean           - 🧹 Hard reset: Remove volumes and .env"
 	@echo "  proto           - 🔄 Regenerate gRPC protobuf stubs"
+	@echo "  proto-check     - 🔍 Fail if protobuf outputs are stale"
+	@echo "  verify          - ✅ Run unified Go/Rust/Frontend validation"
 
 # 🚀 The Master Lifecycle (Development)
 deploy: gen-secrets audit build up
@@ -79,8 +81,26 @@ clean:
 logs:
 	@docker-compose logs -f
 
+
 # 🔄 Proto Regeneration
 proto:
 	@echo "🔄 Regenerating protobuf stubs..."
-	@protoc --go_out=. --go-grpc_out=. proto/kari/agent/v1/agent.proto
+	@chmod +x scripts/proto-gen.sh && ./scripts/proto-gen.sh
 	@echo "✅ Proto stubs regenerated."
+
+# 🛡️ Proto Drift Guard (CI check)
+proto-check:
+	@echo "🔍 Validating protobuf stubs are up to date..."
+	@chmod +x scripts/check-proto-drift.sh && ./scripts/check-proto-drift.sh
+
+# ✅ Unified Local/CI Validation
+verify:
+	@echo "🧪 Running unified verification pipeline..."
+	@go test ./...
+	@cd agent && cargo fmt -- --check
+	@cd agent && cargo clippy --all-targets --all-features
+	@cd agent && cargo test
+	@npm --prefix frontend ci
+	@npm --prefix frontend run check
+	@npm --prefix frontend run test -- --run
+	@echo "✅ verify completed"

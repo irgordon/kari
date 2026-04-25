@@ -145,10 +145,13 @@ To see exactly what the **Brain** is thinking versus what the **Muscle** is doin
 
 ## 🏁 Quality Assurance (QA)
 
-Before submitting a Pull Request, ensure the **2026 SLA** is met:
+Before submitting a Pull Request, run the unified validation pipeline:
 
-1. **Go**: `cd api && go test ./...`
-2. **Rust**: `cd agent && cargo test`
-3. **UI**: `cd frontend && npm run check`
+1. **Unified Verify**: `make verify`
+   - Runs Go tests, Rust fmt/clippy/test, and frontend install/check/test.
+2. **Proto Drift Guard**: `make proto-check`
+   - Regenerates protobuf outputs and fails if committed artifacts are stale.
+
+If either command fails, fix the root cause before opening a PR.
 
 ---
