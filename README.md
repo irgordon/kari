@@ -179,13 +179,21 @@ By implementing the Single Layer Abstraction (SLA) principle, adding a new rever
 
 Our developer experience is engineered for speed and determinism. We provide two distinct workflows depending on your testing needs.
 
+### Safe Defaults
+
+- No custom config is required for normal local runs.
+- `make dev` is the recommended single-command validation surface.
+- Protobuf tooling is optional unless you are changing `.proto` definitions.
+- Advanced security/governance controls remain available but are not required for first use.
+
 ### Prerequisites
 
 - Docker & Docker Compose (v2+)
 - Go 1.22+
 - Rust (Stable) + Cargo
 - Node.js 20+
-- Protocol Buffers Compiler (`protoc`)
+- Protocol Buffers Compiler (`protoc`) *(optional unless editing `.proto` files)*
+- `protoc-gen-go` and `protoc-gen-go-grpc` *(optional unless editing `.proto` files)*
 
 ### Getting Started
 
@@ -197,14 +205,28 @@ cd kari
 
 ```
 
-2. **Generate the gRPC Protobufs:**
+2. **Optional first-run bootstrap (one command):**
 
 ```bash
-make proto-gen
+./scripts/bootstrap.sh
 
 ```
 
-3. **Choose your Execution Model:**
+3. **Generate the gRPC Protobufs (only if modifying `.proto` contracts):**
+
+```bash
+make proto
+
+```
+
+4. **Run the single-command preflight (recommended):**
+
+```bash
+make dev
+
+```
+
+5. **Choose your Execution Model:**
 
 **Option A: Fast Iteration (Native Host)**
 Spins up PostgreSQL via Docker, but runs the Go Brain, Rust Muscle, and SvelteKit UI natively on your machine with mocked filesystem paths (no `sudo` required). Perfect for UI work and instant Hot Module Replacement (HMR).
@@ -256,6 +278,7 @@ Dive deeper into the engineering principles behind Karı:
 - [The Muscle API (gRPC Schema)](https://www.google.com/search?q=docs/AGENT_API.md)
 - [Provider Integrations](https://www.google.com/search?q=docs/PROVIDERS.md)
 - [System Requirements & Pre-flight Checks](https://www.google.com/search?q=docs/SYSTEM_CHECK.md)
+- [Quickstart: Local to Production](https://www.google.com/search?q=docs/QUICKSTART_LOCAL_PRODUCTION.md)
 
 ---
 
