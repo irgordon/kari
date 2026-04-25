@@ -186,6 +186,7 @@ Our developer experience is engineered for speed and determinism. We provide two
 - Rust (Stable) + Cargo
 - Node.js 20+
 - Protocol Buffers Compiler (`protoc`)
+- `protoc-gen-go` and `protoc-gen-go-grpc` (for Go gRPC stub generation)
 
 ### Getting Started
 
@@ -200,11 +201,18 @@ cd kari
 2. **Generate the gRPC Protobufs:**
 
 ```bash
-make proto-gen
+make proto
 
 ```
 
-3. **Choose your Execution Model:**
+3. **Run the unified preflight checks (recommended before PRs):**
+
+```bash
+make verify
+
+```
+
+4. **Choose your Execution Model:**
 
 **Option A: Fast Iteration (Native Host)**
 Spins up PostgreSQL via Docker, but runs the Go Brain, Rust Muscle, and SvelteKit UI natively on your machine with mocked filesystem paths (no `sudo` required). Perfect for UI work and instant Hot Module Replacement (HMR).
