@@ -6,9 +6,11 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"kari/api/internal/core/domain"
-	"kari/api/internal/grpc/rustagent"
+	"github.com/irgordon/kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/grpc/rustagent"
 )
+
+const unsupportedProxyManagement = "apache proxy management is not supported by the current agent API"
 
 type ApacheService struct {
 	appRepo     domain.ApplicationRepository
@@ -32,7 +34,7 @@ func NewApacheService(
 }
 
 // AttachDomain binds a domain to an app and triggers the Rust Muscle to update Apache
-func (s *ApacheService) AttachDomain(ctx context.Context, appID uuid.UUID, domainName string, port u16) error {
+func (s *ApacheService) AttachDomain(ctx context.Context, appID uuid.UUID, domainName string, port int) error {
 	s.logger.Info("Attaching domain", slog.String("domain", domainName), slog.String("app_id", appID.String()))
 
 	// 1. Persist the intent in the DomainRepository
@@ -45,35 +47,15 @@ func (s *ApacheService) AttachDomain(ctx context.Context, appID uuid.UUID, domai
 		return fmt.Errorf("failed to record domain intent: %w", err)
 	}
 
-	// 🛡️ 2. gRPC Call to Muscle
-	// We send the request to create a VirtualHost pointing to the app's internal port
-	resp, err := s.agentClient.ManageProxy(ctx, &rustagent.ProxyRequest{
-		Action:     rustagent.ProxyAction_CREATE,
-		DomainName: domainName,
-		TargetPort: uint32(port),
-	})
-
-	if err != nil || !resp.Success {
-		s.logger.Error("Muscle failed to update Apache", slog.Any("error", err))
-		_ = s.domainRepo.UpdateStatus(ctx, domainName, "failed")
-		return fmt.Errorf("proxy configuration failed at the muscle layer")
-	}
-
-	// 3. Finalize state
-	return s.domainRepo.UpdateStatus(ctx, domainName, "active")
+	_ = port
+	_ = s.agentClient
+	_ = s.domainRepo.UpdateStatus(ctx, domainName, "failed")
+	return fmt.Errorf(unsupportedProxyManagement)
 }
 
 // DetachDomain cleans up both the database and the remote Apache config
 func (s *ApacheService) DetachDomain(ctx context.Context, domainName string) error {
-	// 🛡️ Zero-Trust: Tell the Muscle to purge the VHost before we delete the DB record
-	resp, err := s.agentClient.ManageProxy(ctx, &rustagent.ProxyRequest{
-		Action:     rustagent.ProxyAction_DELETE,
-		DomainName: domainName,
-	})
-
-	if err != nil || !resp.Success {
-		return fmt.Errorf("failed to detach proxy: %v", err)
-	}
-
-	return s.domainRepo.Delete(ctx, domainName)
+	_ = s.agentClient
+	_ = s.domainRepo.Delete(ctx, domainName)
+	return fmt.Errorf(unsupportedProxyManagement)
 }

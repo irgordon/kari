@@ -6,8 +6,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	
-	"kari/api/internal/core/domain"
+
+	"github.com/irgordon/kari/api/internal/core/domain"
 )
 
 // KariClaims holds the stateless authorization data.
@@ -33,7 +33,7 @@ func NewTokenService(secret string) *TokenService {
 func (s *TokenService) GenerateTokenPair(user *domain.User) (string, string, error) {
 	now := time.Now()
 	// 🛡️ Stability: 5-second clock skew allowance for distributed systems
-	nbf := jwt.NewNumericDate(now.Add(-5 * time.Second)) 
+	nbf := jwt.NewNumericDate(now.Add(-5 * time.Second))
 
 	// 1. 🛡️ Mint Access Token (15 Minutes) - Contains full RBAC data
 	accessClaims := KariClaims{
@@ -76,12 +76,39 @@ func (s *TokenService) GenerateTokenPair(user *domain.User) (string, string, err
 	return signedAccess, signedRefresh, nil
 }
 
+func (s *TokenService) GenerateAccessToken(user *domain.User) (string, error) {
+	accessToken, _, err := s.GenerateTokenPair(user)
+	return accessToken, err
+}
+
+func (s *TokenService) ValidateAccessToken(tokenString string) (*domain.UserClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &KariClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return s.secret, nil
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer("kari-brain"), jwt.WithExpirationRequired())
+	if err != nil {
+		return nil, err
+	}
+	claims, ok := token.Claims.(*KariClaims)
+	if !ok || !token.Valid || claims.TokenType != "access" {
+		return nil, fmt.Errorf("invalid access token")
+	}
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return nil, err
+	}
+	return &domain.UserClaims{
+		UserID:      userID,
+		Subject:     userID,
+		Permissions: claims.Permissions,
+	}, nil
+}
+
 // VerifyRefreshToken validates the signature, expiry, algorithm, issuer, and token type.
 func (s *TokenService) VerifyRefreshToken(tokenString string) (uuid.UUID, error) {
 	// 🛡️ Zero-Trust: We utilize v5's parser options to strictly enforce cryptographic boundaries
 	token, err := jwt.ParseWithClaims(tokenString, &KariClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return s.secret, nil
-	}, 
+	},
 		jwt.WithValidMethods([]string{"HS256"}), // Explicitly reject HS512, none, RS256, etc.
 		jwt.WithIssuer("kari-brain"),            // Explicitly reject tokens minted by other services
 		jwt.WithExpirationRequired(),            // Reject tokens missing the 'exp' claim

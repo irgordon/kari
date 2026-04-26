@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	"kari/api/internal/api/handlers"
-	auth_middleware "kari/api/internal/api/middleware"
+	"github.com/irgordon/kari/api/internal/api/handlers"
+	auth_middleware "github.com/irgordon/kari/api/internal/api/middleware"
 )
 
 // RouterConfig defines the strict dependencies required to build the API routing tree.
@@ -86,7 +86,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		r.Group(func(r chi.Router) {
 			r.Post("/auth/login", cfg.AuthHandler.Login)
 			r.Post("/auth/refresh", cfg.AuthHandler.Refresh)
-			
+
 			// Webhook now takes an {id} to isolate database lookups
 			r.Post("/webhooks/github/{id}", cfg.AppHandler.HandleGitHubWebhook)
 		})
@@ -104,7 +104,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					if req.Method == http.MethodPost || req.Method == http.MethodPut ||
 						req.Method == http.MethodDelete || req.Method == http.MethodPatch {
-						
+
 						// The scopes that permit mutation
 						guard := cfg.AuthMiddleware.RequireScope(
 							"domains:write", "domains:delete",
@@ -122,13 +122,13 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			r.Route("/domains", func(r chi.Router) {
 				r.With(cfg.AuthMiddleware.RequirePermission("domains", "read")).
 					Get("/", cfg.DomainHandler.List)
-				
+
 				r.With(cfg.AuthMiddleware.RequirePermission("domains", "write")).
 					Post("/", cfg.DomainHandler.Create)
-				
+
 				r.With(cfg.AuthMiddleware.RequirePermission("domains", "delete")).
 					Delete("/{id}", cfg.DomainHandler.Delete)
-				
+
 				r.With(cfg.AuthMiddleware.RequirePermission("domains", "write")).
 					Post("/{id}/ssl", cfg.DomainHandler.ProvisionSSL)
 			})
@@ -137,17 +137,17 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			r.Route("/applications", func(r chi.Router) {
 				r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).
 					Get("/", cfg.AppHandler.List)
-				
+
 				r.With(cfg.AuthMiddleware.RequirePermission("applications", "write")).
 					Post("/", cfg.AppHandler.Create)
-				
+
 				r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).
 					Get("/{id}", cfg.AppHandler.GetByID)
-				
+
 				r.With(cfg.AuthMiddleware.RequirePermission("applications", "write")).
 					With(auth_middleware.ValidateEnvVars).
 					Put("/{id}/env", cfg.AppHandler.UpdateEnv)
-				
+
 				r.With(cfg.AuthMiddleware.RequirePermission("applications", "deploy")).
 					Post("/{id}/deploy", cfg.AppHandler.TriggerDeploy)
 			})

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"crypto/rand"
-	"kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/domain"
 	"math/big"
 )
 

@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 
-	"kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/domain"
 )
 
 // ==============================================================================
@@ -82,8 +82,8 @@ func (h *WebSocketHandler) StreamDeploymentLogs(w http.ResponseWriter, r *http.R
 	// 2. Upgrade the HTTP connection to a full-duplex WebSocket connection
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		h.Logger.Error("Failed to upgrade WebSocket connection", 
-			slog.String("trace_id", traceID), 
+		h.Logger.Error("Failed to upgrade WebSocket connection",
+			slog.String("trace_id", traceID),
 			slog.String("error", err.Error()),
 		)
 		return
@@ -94,8 +94,8 @@ func (h *WebSocketHandler) StreamDeploymentLogs(w http.ResponseWriter, r *http.R
 	// It returns a read-only Go channel that will yield log chunks as they arrive from the Rust Agent.
 	logChannel, err := h.Service.SubscribeToDeploymentLogs(r.Context(), traceID, userClaims.Subject)
 	if err != nil {
-		h.Logger.Warn("WebSocket subscription rejected", 
-			slog.String("trace_id", traceID), 
+		h.Logger.Warn("WebSocket subscription rejected",
+			slog.String("trace_id", traceID),
 			slog.String("error", err.Error()),
 		)
 		// Send a clean closure message to the frontend so the UI doesn't hang
@@ -106,10 +106,10 @@ func (h *WebSocketHandler) StreamDeploymentLogs(w http.ResponseWriter, r *http.R
 
 	// 4. Hand off the connection to the concurrent pump managers
 	// We use two separate goroutines to handle reading and writing simultaneously.
-	
+
 	// The Read Pump handles incoming control messages (like Ping/Pong) to keep the connection alive.
 	go h.readPump(ws, traceID)
-	
+
 	// The Write Pump takes the Go channel and streams it to the browser.
 	// This blocks the current HTTP handler thread until the deployment finishes or the user closes the tab.
 	h.writePump(ws, logChannel, traceID)
@@ -135,7 +135,7 @@ func (h *WebSocketHandler) writePump(ws *websocket.Conn, logChannel <-chan domai
 		// Case 1: We receive a new log chunk from the Go channel (originated from Rust)
 		case chunk, ok := <-logChannel:
 			ws.SetWriteDeadline(time.Now().Add(writeWait))
-			
+
 			if !ok {
 				// The channel was closed by the Service layer. This means the deployment finished successfully.
 				ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Deployment completed"))
@@ -145,8 +145,8 @@ func (h *WebSocketHandler) writePump(ws *websocket.Conn, logChannel <-chan domai
 			// Serialize the chunk to JSON and push it over the WebSocket
 			err := ws.WriteJSON(chunk)
 			if err != nil {
-				h.Logger.Error("Failed to write JSON to WebSocket", 
-					slog.String("trace_id", traceID), 
+				h.Logger.Error("Failed to write JSON to WebSocket",
+					slog.String("trace_id", traceID),
 					slog.String("error", err.Error()),
 				)
 				return // Drop the connection if writing fails (e.g., broken pipe)
@@ -180,22 +180,22 @@ func (h *WebSocketHandler) readPump(ws *websocket.Conn, traceID string) {
 	// Configure limits and timeouts
 	ws.SetReadLimit(maxMessageSize)
 	ws.SetReadDeadline(time.Now().Add(pongWait))
-	
+
 	// Every time we receive a Pong from the browser, we reset the deadline
-	ws.SetPongHandler(func(string) error { 
+	ws.SetPongHandler(func(string) error {
 		ws.SetReadDeadline(time.Now().Add(pongWait))
-		return nil 
+		return nil
 	})
 
-	// Enter an infinite loop reading messages. 
+	// Enter an infinite loop reading messages.
 	// Since this is a one-way log stream, we don't actually care about text messages from the client.
 	// We just read to process control messages (Pong/Close) and detect disconnects.
 	for {
 		_, _, err := ws.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				h.Logger.Warn("WebSocket closed unexpectedly", 
-					slog.String("trace_id", traceID), 
+				h.Logger.Warn("WebSocket closed unexpectedly",
+					slog.String("trace_id", traceID),
 					slog.String("error", err.Error()),
 				)
 			}

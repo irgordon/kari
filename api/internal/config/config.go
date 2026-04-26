@@ -9,9 +9,9 @@ import (
 // Config holds all dynamic configuration for the Brain.
 // 🛡️ SLA: It knows NOTHING about the host operating system's filesystem.
 type Config struct {
-	Environment string // "development" or "production"
-	DatabaseURL string
-	Port        string
+	Environment    string // "development" or "production"
+	DatabaseURL    string
+	Port           string
 	AllowedOrigins []string
 
 	// 🛡️ Zero-Trust Identity
@@ -19,7 +19,13 @@ type Config struct {
 	MasterKeyHex string
 
 	// 🛡️ The Execution Boundary
-	AgentSocket string // e.g., "/var/run/kari/agent.sock"
+	AgentSocket      string // e.g., "/var/run/kari/agent.sock"
+	AcmeDirectoryUrl string
+	WebRoot          string
+	WebUser          string
+	WebGroup         string
+	SSLStorageDir    string
+	NginxConfPath    string
 }
 
 // Load parses the environment and applies sensible default fallbacks.
@@ -61,7 +67,13 @@ func Load() *Config {
 		MasterKeyHex:   getEnv("ENCRYPTION_KEY", ""),
 
 		// 2. 🛡️ Network Agnosticism: The only way the Brain talks to the Muscle
-		AgentSocket: getEnv("AGENT_SOCKET", "/var/run/kari/agent.sock"),
+		AgentSocket:      getEnv("AGENT_SOCKET", "/var/run/kari/agent.sock"),
+		AcmeDirectoryUrl: getEnv("ACME_DIRECTORY_URL", ""),
+		WebRoot:          getEnv("WEB_ROOT", "/var/www/kari"),
+		WebUser:          getEnv("WEB_USER", "www-data"),
+		WebGroup:         getEnv("WEB_GROUP", "www-data"),
+		SSLStorageDir:    getEnv("SSL_STORAGE_DIR", "/etc/letsencrypt/live"),
+		NginxConfPath:    getEnv("NGINX_CONF_PATH", "/etc/nginx/conf.d"),
 	}
 }
 

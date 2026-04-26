@@ -9,9 +9,9 @@ import (
 	"regexp"
 	"text/template"
 
-	"kari/api/internal/config"
-	"kari/api/internal/core/domain"
-	pb "kari/api/internal/grpc/rustagent" // Aliased for clarity
+	"github.com/irgordon/kari/api/internal/config"
+	"github.com/irgordon/kari/api/internal/core/domain"
+	pb "github.com/irgordon/kari/api/internal/grpc/rustagent" // Aliased for clarity
 )
 
 // ==============================================================================

@@ -11,7 +11,7 @@ import (
 	// "github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/time/rate"
 
-	"kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/domain"
 )
 
 type AuthMiddleware struct {
@@ -87,7 +87,7 @@ func (m *AuthMiddleware) RateLimit(next http.Handler) http.Handler {
 			limiter:  rate.NewLimiter(rate.Limit(10), 30),
 			lastSeen: time.Now(),
 		})
-		
+
 		vis := v.(*visitor)
 		vis.lastSeen = time.Now()
 
@@ -96,6 +96,49 @@ func (m *AuthMiddleware) RateLimit(next http.Handler) http.Handler {
 			return
 		}
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+func StructuredLogger(logger *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			startedAt := time.Now()
+			next.ServeHTTP(w, r)
+			logger.Info("http request",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.Duration("duration", time.Since(startedAt)),
+			)
+		})
+	}
+}
+
+func MaxBytes(limit int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func RateLimitMiddleware(next http.Handler) http.Handler {
+	limiter := rate.NewLimiter(rate.Limit(10), 30)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !limiter.Allow() {
+			http.Error(w, `{"message": "Rate limit exceeded"}`, http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func EnforceTLS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS != nil {
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

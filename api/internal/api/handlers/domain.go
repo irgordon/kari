@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/domain"
 )
 
 // ==============================================================================
@@ -118,7 +118,7 @@ func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The Service layer enforces IDOR protection. It will verify that the user actually owns
-	// this Domain ID before attempting to delete it from the database and instructing Rust 
+	// this Domain ID before attempting to delete it from the database and instructing Rust
 	// to remove the Nginx configs.
 	err = h.Service.DeleteDomain(r.Context(), domainID, userClaims.Subject)
 	if err != nil {
@@ -147,7 +147,7 @@ func (h *DomainHandler) ProvisionSSL(w http.ResponseWriter, r *http.Request) {
 
 	// Because SSL provisioning takes several seconds (verifying DNS, negotiating with Let's Encrypt),
 	// we do not block the HTTP request. We trigger it asynchronously and return a 202 Accepted.
-	
+
 	// In a production environment, you might dispatch this to a Redis queue (e.g., Asynq or machinery).
 	// For Karı's lightweight architecture, we dispatch it to a managed goroutine within the service.
 	err = h.Service.TriggerSSLProvisioning(r.Context(), domainID, userClaims.Subject)

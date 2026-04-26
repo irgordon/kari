@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"kari/api/internal/core/domain"
-	"kari/api/internal/core/services"
+	"github.com/irgordon/kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/services"
 )
 
 const (
@@ -22,9 +22,9 @@ func TestTokenService_GenerateTokenPair(t *testing.T) {
 	tokenService := services.NewTokenService(testSecret)
 	userID := uuid.New()
 	user := &domain.User{
-		ID:    userID,
-		Email: "test@kari.dev",
-		Rank:  "admin",
+		ID:          userID,
+		Email:       "test@kari.dev",
+		Rank:        "admin",
 		Permissions: []string{"read:users", "write:users"},
 	}
 

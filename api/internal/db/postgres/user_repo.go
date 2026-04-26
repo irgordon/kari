@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/irgordon/kari/api/internal/core/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"kari/api/internal/core/domain"
 )
 
 type UserRepo struct {
@@ -62,6 +62,35 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 		return nil, err
 	}
 	user.Role = role
+	return &user, nil
+}
+
+func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	query := `
+		SELECT u.id, u.email, u.password_hash, u.is_active, u.created_at, u.updated_at,
+		       r.id, r.name, r.rank
+		FROM users u
+		JOIN roles r ON u.role_id = r.id
+		WHERE u.email = $1
+	`
+	var user domain.User
+	var role domain.Role
+
+	err := r.pool.QueryRow(ctx, query, email).Scan(
+		&user.ID, &user.Email, &user.PasswordHash, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+		&role.ID, &role.Name, &role.Rank,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+
+	user.Role = role
+	user.RoleID = role.ID
+	user.Rank = fmt.Sprintf("%d", role.Rank)
+	user.Permissions = []string{}
 	return &user, nil
 }
 

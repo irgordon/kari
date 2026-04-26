@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"kari/api/internal/core/domain"
-	agent "kari/api/internal/grpc/rustagent" // Generated gRPC client
+	"github.com/irgordon/kari/api/internal/core/domain"
+	agent "github.com/irgordon/kari/api/internal/grpc/rustagent" // Generated gRPC client
 )
 
 // Broadcaster abstracts the telemetry hub for dependency inversion

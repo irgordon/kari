@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/irgordon/kari/api/internal/core/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"kari/api/internal/core/domain"
 )
 
 type AuditRepository struct {
@@ -46,7 +46,7 @@ func (r *AuditRepository) GetFilteredAlerts(ctx context.Context, filter domain.A
 	// Base queries
 	baseQuery := `SELECT id, severity, category, resource_id, message, is_resolved, metadata, created_at FROM system_alerts WHERE 1=1`
 	countQuery := `SELECT COUNT(*) FROM system_alerts WHERE 1=1`
-	
+
 	filterSQL := ""
 	args := []any{}
 	argIdx := 1
@@ -86,11 +86,13 @@ func (r *AuditRepository) GetFilteredAlerts(ctx context.Context, filter domain.A
 
 	// 🛡️ SLA: Strict Pagination Limits
 	limit := filter.Limit
-	if limit <= 0 || limit > 100 { limit = 50 }
-	
-	finalQuery := fmt.Sprintf("%s%s ORDER BY created_at DESC LIMIT $%d OFFSET $%d", 
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	finalQuery := fmt.Sprintf("%s%s ORDER BY created_at DESC LIMIT $%d OFFSET $%d",
 		baseQuery, filterSQL, argIdx, argIdx+1)
-	
+
 	args = append(args, limit, filter.Offset)
 
 	rows, err := r.pool.Query(ctx, finalQuery, args...)

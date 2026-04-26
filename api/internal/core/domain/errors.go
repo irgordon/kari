@@ -1,6 +1,14 @@
 package domain
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
+
+var (
+	ErrNotFound           = errors.New("not found")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+)
 
 // AgentErrorCode maps raw gRPC error messages from the Rust Muscle
 // into human-readable error codes that the Svelte UI can present

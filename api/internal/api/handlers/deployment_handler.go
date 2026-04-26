@@ -7,9 +7,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"kari/api/internal/core/domain"
-	"kari/api/internal/telemetry"
-	"kari/api/internal/api/middleware"
+	"github.com/irgordon/kari/api/internal/api/middleware"
+	"github.com/irgordon/kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/telemetry"
 )
 
 type DeploymentHandler struct {
@@ -64,15 +64,15 @@ func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Requ
 
 	// 🛡️ SLA: Persist the task as PENDING for the Worker to claim
 	deployment := &domain.Deployment{
-		ID:               uuid.New().String(),
-		AppID:            appID,
-		DomainName:       req.Name,
-		RepoURL:          req.RepoURL,
-		Branch:           req.Branch,
-		BuildCommand:     req.BuildCommand,
-		TargetPort:       req.TargetPort,
-		EncryptedSSHKey:  encryptedKey,
-		Status:           domain.StatusPending,
+		ID:              uuid.New().String(),
+		AppID:           appID,
+		DomainName:      req.Name,
+		RepoURL:         req.RepoURL,
+		Branch:          req.Branch,
+		BuildCommand:    req.BuildCommand,
+		TargetPort:      int32(req.TargetPort),
+		EncryptedSSHKey: encryptedKey,
+		Status:          domain.StatusPending,
 	}
 
 	if err := h.repo.Save(r.Context(), deployment); err != nil {

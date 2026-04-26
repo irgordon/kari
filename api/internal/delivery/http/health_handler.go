@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	agent "github.com/irgordon/kari/api/internal/grpc/rustagent"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	agent "kari/api/internal/grpc/rustagent"
 )
 
 type HealthHandler struct {

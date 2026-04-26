@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"kari/api/internal/core/domain"
-	"kari/api/internal/grpc/rustagent"
+	"github.com/irgordon/kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/grpc/rustagent"
 )
 
 // ApacheAdapter implements the core.domain.ProxyManager interface.
@@ -23,41 +23,16 @@ func NewApacheAdapter(client rustagent.SystemAgentClient) *ApacheAdapter {
 
 // ProvisionVHost sends an authenticated request to the Rust Muscle to create an Apache config.
 func (a *ApacheAdapter) ProvisionVHost(ctx context.Context, config domain.ProxyConfig) error {
-	// 🛡️ SLA: Data Translation
-	// We convert our Domain Model (ProxyConfig) into the Protobuf format (ProxyRequest).
-	req := &rustagent.ProxyRequest{
-		Action:     rustagent.ProxyAction_CREATE,
-		DomainName: config.DomainName,
-		TargetPort: uint32(config.TargetPort), // Protobuf uses uint32 for ports
-	}
-
-	resp, err := a.client.ManageProxy(ctx, req)
-	if err != nil {
-		return fmt.Errorf("gRPC transport error: %w", err)
-	}
-
-	if !resp.Success {
-		return fmt.Errorf("muscle-layer error: %s", resp.ErrorMessage)
-	}
-
-	return nil
+	_ = ctx
+	_ = config
+	_ = a.client
+	return fmt.Errorf("apache proxy management is not supported by the current agent API")
 }
 
 // DeprovisionVHost ensures the remote Apache configuration is purged and the service reloaded.
 func (a *ApacheAdapter) DeprovisionVHost(ctx context.Context, domainName string) error {
-	req := &rustagent.ProxyRequest{
-		Action:     rustagent.ProxyAction_DELETE,
-		DomainName: domainName,
-	}
-
-	resp, err := a.client.ManageProxy(ctx, req)
-	if err != nil {
-		return fmt.Errorf("gRPC transport error: %w", err)
-	}
-
-	if !resp.Success {
-		return fmt.Errorf("failed to deprovision vhost: %s", resp.ErrorMessage)
-	}
-
-	return nil
+	_ = ctx
+	_ = domainName
+	_ = a.client
+	return fmt.Errorf("apache proxy management is not supported by the current agent API")
 }

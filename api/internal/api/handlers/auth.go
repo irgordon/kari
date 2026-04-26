@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/domain"
 )
 
 // ==============================================================================
@@ -52,7 +52,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Delegate to the Core Service
-	// The service handles fetching the user, verifying the bcrypt password hash, 
+	// The service handles fetching the user, verifying the bcrypt password hash,
 	// and generating the cryptographic JWT strings.
 	tokenPair, user, err := h.Service.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
@@ -69,7 +69,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// 5. Return safe user data to the frontend (no passwords, no tokens)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
+
 	// We return the user struct so the SvelteKit UI can instantly display their name/role
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Login successful",
@@ -112,7 +112,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 // Logout handles POST /api/v1/auth/logout
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	// Optionally, you can extract the refresh token and tell the database to blacklist it here
-	
+
 	// Issue expired cookies to the browser to physically delete them
 	h.clearAuthCookies(w)
 
@@ -133,8 +133,8 @@ func (h *AuthHandler) setAuthCookies(w http.ResponseWriter, tokens *domain.Token
 		Value:    tokens.AccessToken,
 		Path:     "/",
 		Expires:  time.Now().Add(15 * time.Minute),
-		HttpOnly: true,  // JavaScript cannot read this (XSS protection)
-		Secure:   true,  // Only sent over HTTPS
+		HttpOnly: true,                    // JavaScript cannot read this (XSS protection)
+		Secure:   true,                    // Only sent over HTTPS
 		SameSite: http.SameSiteStrictMode, // Prevents Cross-Site Request Forgery (CSRF)
 	})
 
