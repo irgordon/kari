@@ -64,6 +64,13 @@ cobertura.xml
 # Caches
 /frontend/.eslintcache
 /frontend/.vite/
+playwright-report/
+test-results/
+frontend_verification/
+**/dist
+**/build
+**/coverage
+**/target
 
 # ==============================================================================
 # 🛡️ Kari Ironclad: Secrets, Configs & Infra (.gitignore)
