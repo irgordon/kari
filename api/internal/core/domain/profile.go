@@ -11,28 +11,28 @@ import (
 // SystemProfile dictates the global behavior, resource limits, and safety boundaries.
 // 🛡️ SLA: This struct strictly holds INTENT, not OS-level deployment paths.
 type SystemProfile struct {
-	ID                    uuid.UUID         `json:"id"`
-	
+	ID uuid.UUID `json:"id"`
+
 	// 📦 Stack & Routing Governance
-	DefaultStackRegistry  map[string]string `json:"stack_defaults"`
-	SSLStrategy           string            `json:"ssl_strategy"`
-	
+	DefaultStackRegistry map[string]string `json:"stack_defaults"`
+	SSLStrategy          string            `json:"ssl_strategy"`
+
 	// 🛡️ Resource Jailing (SLA Enforcement)
-	MaxMemoryPerAppMB     int               `json:"max_memory_per_app_mb"` 
-	MaxCPUPercentPerApp   int               `json:"max_cpu_percent_per_app"`
-	
+	MaxMemoryPerAppMB   int `json:"max_memory_per_app_mb"`
+	MaxCPUPercentPerApp int `json:"max_cpu_percent_per_app"`
+
 	// 🛡️ Security & Identity Policies
-	DefaultFirewallPolicy string            `json:"default_firewall_policy"`
-	AppUserUIDRangeStart  int               `json:"app_user_uid_range_start"`
-	AppUserUIDRangeEnd    int               `json:"app_user_uid_range_end"`
-	
+	DefaultFirewallPolicy string `json:"default_firewall_policy"`
+	AppUserUIDRangeStart  int    `json:"app_user_uid_range_start"`
+	AppUserUIDRangeEnd    int    `json:"app_user_uid_range_end"`
+
 	// 💾 Backup & Retention
-	BackupRetentionDays   int               `json:"backup_retention_days"`
-	
+	BackupRetentionDays int `json:"backup_retention_days"`
+
 	// 🛡️ Stability: Optimistic Concurrency Control
 	// Prevents two admins from accidentally overwriting each other's configuration changes.
-	Version               int               `json:"version"`
-	UpdatedAt             time.Time         `json:"updated_at"`
+	Version   int       `json:"version"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // 🛡️ Domain-Driven Integrity
@@ -57,9 +57,9 @@ func (p *SystemProfile) Validate() error {
 // SystemProfileRepository defines the interface for state persistence.
 type SystemProfileRepository interface {
 	GetActiveProfile(ctx context.Context) (*SystemProfile, error)
-	
-	// UpdateProfile mutates the system state. 
-	// 🛡️ Implementation detail for adapters: Must check the 'Version' field and 
+
+	// UpdateProfile mutates the system state.
+	// 🛡️ Implementation detail for adapters: Must check the 'Version' field and
 	// return a concurrency error if the DB version > the struct version.
 	UpdateProfile(ctx context.Context, profile *SystemProfile) error
 }

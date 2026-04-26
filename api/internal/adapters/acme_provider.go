@@ -17,9 +17,9 @@ import (
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
 
-	"kari/api/internal/config"
+	"github.com/irgordon/kari/api/internal/config"
 	// Assuming the generated protobuf package is aliased as pb
-	pb "kari/api/internal/grpc/rustagent"
+	pb "github.com/irgordon/kari/api/internal/grpc/rustagent"
 )
 
 // ==============================================================================

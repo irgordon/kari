@@ -13,8 +13,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 
-	"kari/api/internal/core/domain"
-	"kari/api/internal/core/utils"
+	"github.com/irgordon/kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/utils"
 )
 
 // Use a single instance of Validate, it caches struct info
@@ -230,9 +230,9 @@ func (h *AppHandler) HandleGitHubWebhook(w http.ResponseWriter, r *http.Request)
 
 	// 4. Validate the HMAC Signature (Fails instantly if forged)
 	signature := r.Header.Get("X-Hub-Signature-256")
-	if err := utils.VerifyGitHubSignature(rawBody, signature, app.WebhookSecret); err != nil {
+	if err := utils.VerifyGitHubSignature(rawBody, signature, []byte(app.WebhookSecret)); err != nil {
 		// Log the attack attempt, but return a generic 401
-		// h.Service.Logger.Warn("Forged Webhook", ...) 
+		// h.Service.Logger.Warn("Forged Webhook", ...)
 		http.Error(w, `{"message": "Unauthorized: Invalid signature"}`, http.StatusUnauthorized)
 		return
 	}

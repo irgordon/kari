@@ -8,14 +8,14 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	
-	"kari/api/internal/core/domain"
+
+	"github.com/irgordon/kari/api/internal/core/domain"
 )
 
 var (
 	// ErrProfileNotFound is returned when the singleton profile hasn't been initialized.
 	ErrProfileNotFound = errors.New("system profile not found")
-	
+
 	// ErrConcurrencyConflict is returned when Optimistic Locking detects a race condition.
 	ErrConcurrencyConflict = errors.New("optimistic lock failure: the profile was updated by another administrator")
 )
@@ -46,7 +46,7 @@ func (r *PostgresProfileRepository) GetActiveProfile(ctx context.Context) (*doma
 	`
 
 	var p domain.SystemProfile
-	
+
 	// Execute the query, respecting the HTTP context timeout
 	err := r.pool.QueryRow(ctx, query).Scan(
 		&p.ID,
@@ -81,8 +81,8 @@ func (r *PostgresProfileRepository) UpdateProfile(ctx context.Context, profile *
 	}
 
 	// 2. 🛡️ Zero-Trust SQL Injection Defense & OCC
-	// We use strictly parameterized queries ($1, $2). 
-	// The crucial OCC logic is `WHERE id = $1 AND version = $10`. 
+	// We use strictly parameterized queries ($1, $2).
+	// The crucial OCC logic is `WHERE id = $1 AND version = $10`.
 	const query = `
 		UPDATE system_profiles SET
 			default_stack_registry = $2,
@@ -120,14 +120,14 @@ func (r *PostgresProfileRepository) UpdateProfile(ctx context.Context, profile *
 
 	// 3. 🛡️ Stability: The Optimistic Lock Evaluation
 	// If the tag reports 0 rows affected, it means the WHERE clause failed.
-	// Either the ID doesn't exist, or the Version in the DB is higher than what 
+	// Either the ID doesn't exist, or the Version in the DB is higher than what
 	// the admin submitted (meaning someone else saved changes first).
 	if tag.RowsAffected() == 0 {
 		return ErrConcurrencyConflict
 	}
 
 	// 4. State Synchronization
-	// Mutate the struct in-memory so the caller has the updated state without 
+	// Mutate the struct in-memory so the caller has the updated state without
 	// needing to perform a secondary SELECT query.
 	profile.Version++
 	profile.UpdatedAt = now

@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"kari/api/internal/config"
-	"kari/api/internal/core/domain"
-	"kari/api/internal/core/services"
-	"kari/api/internal/core/utils"
+	"github.com/irgordon/kari/api/internal/config"
+	"github.com/irgordon/kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/services"
+	"github.com/irgordon/kari/api/internal/core/utils"
 )
 
 // ==============================================================================

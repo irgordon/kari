@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"kari/api/internal/core/utils"
-	agent "kari/api/internal/grpc/rustagent"
+	"github.com/irgordon/kari/api/internal/core/utils"
+	agent "github.com/irgordon/kari/api/internal/grpc/rustagent"
 )
 
 // ==============================================================================
@@ -205,8 +205,8 @@ func (h *SetupHandler) TestMuscle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"healthy": true,
 		"version": status.AgentVersion,
-		"cpu":     fmt.Sprintf("%.1f%%", status.CpuUsage),
-		"ram_mb":  status.MemUsedMb,
+		"cpu":     fmt.Sprintf("%.1f%%", status.CpuUsagePercent),
+		"ram_mb":  status.MemoryUsageMb,
 	})
 }
 

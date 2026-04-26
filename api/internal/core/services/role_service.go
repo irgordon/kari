@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/domain"
 )
 
 type RoleService struct {
@@ -40,8 +40,8 @@ func (s *RoleService) AssignRole(ctx context.Context, actorID uuid.UUID, targetU
 	// In Kari, lower numbers = higher power (0 is SuperUser).
 	// An actor cannot assign a role with a rank superior to their own.
 	if targetRole.Rank < actor.Role.Rank {
-		s.logger.Warn("Escalation attempt blocked", 
-			slog.String("actor", actor.Email), 
+		s.logger.Warn("Escalation attempt blocked",
+			slog.String("actor", actor.Email),
 			slog.String("attempted_rank", fmt.Sprintf("%d", targetRole.Rank)))
 		return errors.New("forbidden: cannot assign a role superior to your own rank")
 	}

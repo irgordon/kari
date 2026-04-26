@@ -17,21 +17,22 @@ type WebServerManager interface {
 
 // WebServerConfig holds the intent for a virtual host.
 type WebServerConfig struct {
-	DomainName     string
-	LocalPort      int    // The internal port where the Systemd Jail is listening
-	AppType        string // e.g., "proxy", "static", "php-fpm"
-	
+	DomainName string
+	LocalPort  int    // The internal port where the Systemd Jail is listening
+	AppType    string // e.g., "proxy", "static", "php-fpm"
+	HasSSL     bool
+
 	// 🛡️ Performance & Security
-	MaxBodySizeMB  int    // Maps to client_max_body_size
-	ProxyTimeout   int    // Seconds before timing out upstream
-	
+	MaxBodySizeMB int // Maps to client_max_body_size
+	ProxyTimeout  int // Seconds before timing out upstream
+
 	// 🛡️ SSL/TLS Metadata
 	// These paths are provided by the Go Brain but managed by the Rust Agent.
-	SSLCertPath    string 
-	SSLKeyPath     string
-	EnforceHSTS    bool
-	
+	SSLCertPath string
+	SSLKeyPath  string
+	EnforceHSTS bool
+
 	// 🛡️ Filesystem Context
 	// Required for "static" or "php-fpm" types to locate the web root.
-	RootDirectory  string 
+	RootDirectory string
 }

@@ -2,11 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
-	"kari/api/internal/core/services"
+	"github.com/irgordon/kari/api/internal/core/services"
 )
 
 // LoginRequest defines the expected shape of the inbound authentication payload.
@@ -39,7 +38,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Orchestrate business logic (which includes our timing-attack defenses)
-	accessToken, refreshToken, err := h.authService.Login(r.Context(), req.Email, req.Password)
+	tokenPair, _, err := h.authService.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		// 🛡️ Information Obfuscation: Generic 401 prevents enumeration
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
@@ -47,7 +46,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. 🛡️ Zero-Trust Network Boundary: Bake the cookies
-	h.setSecureCookies(w, accessToken, refreshToken)
+	h.setSecureCookies(w, tokenPair.AccessToken, tokenPair.RefreshToken)
 
 	// Return a clean 200 OK. Notice we DO NOT return the tokens in the JSON body.
 	w.Header().Set("Content-Type", "application/json")
@@ -90,10 +89,10 @@ func (h *AuthHandler) setSecureCookies(w http.ResponseWriter, accessToken, refre
 		Name:     "kari_access_token",
 		Value:    accessToken,
 		Path:     "/",
-		HttpOnly: true,                  // 🛡️ XSS Protection: JS cannot read this
-		Secure:   true,                  // 🛡️ MITM Protection: Only sent over HTTPS
+		HttpOnly: true,                    // 🛡️ XSS Protection: JS cannot read this
+		Secure:   true,                    // 🛡️ MITM Protection: Only sent over HTTPS
 		SameSite: http.SameSiteStrictMode, // 🛡️ CSRF Protection: Never sent cross-origin
-		MaxAge:   15 * 60,               // 15 Minutes
+		MaxAge:   15 * 60,                 // 15 Minutes
 	})
 
 	// 🛡️ Refresh Token (Long-lived, opaque database pointer)
@@ -104,6 +103,6 @@ func (h *AuthHandler) setSecureCookies(w http.ResponseWriter, accessToken, refre
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
-		MaxAge:   7 * 24 * 60 * 60,      // 7 Days
+		MaxAge:   7 * 24 * 60 * 60, // 7 Days
 	})
 }

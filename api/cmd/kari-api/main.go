@@ -15,17 +15,17 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
-	"kari/api/internal/api/handlers"
-	"kari/api/internal/api/middleware"
-	"kari/api/internal/api/router"
-	"kari/api/internal/config"
-	"kari/api/internal/core/services"
-	"kari/api/internal/db/postgres"
-	agent "kari/api/internal/grpc/rustagent"
-	"kari/api/internal/infrastructure/crypto"
-	"kari/api/internal/telemetry"
-	"kari/api/internal/worker"
-	"kari/api/internal/workers"
+	"github.com/irgordon/kari/api/internal/api/handlers"
+	"github.com/irgordon/kari/api/internal/api/middleware"
+	"github.com/irgordon/kari/api/internal/api/router"
+	"github.com/irgordon/kari/api/internal/config"
+	"github.com/irgordon/kari/api/internal/core/services"
+	"github.com/irgordon/kari/api/internal/db/postgres"
+	agent "github.com/irgordon/kari/api/internal/grpc/rustagent"
+	"github.com/irgordon/kari/api/internal/infrastructure/crypto"
+	"github.com/irgordon/kari/api/internal/telemetry"
+	"github.com/irgordon/kari/api/internal/worker"
+	"github.com/irgordon/kari/api/internal/workers"
 )
 
 func main() {
@@ -104,21 +104,24 @@ func main() {
 	}
 
 	// Repositories
-	appRepo := postgres.NewApplicationRepository(dbPool)
+	appRepo := postgres.NewApplicationRepo(dbPool)
 	deployRepo := postgres.NewPostgresDeploymentRepository(dbPool)
-	userRepo := postgres.NewUserRepository(dbPool)
+	userRepo := postgres.NewUserRepo(dbPool)
+	auditRepo := postgres.NewAuditRepository(dbPool)
 
 	// 🛡️ Global Telemetry Hub (Memory Bus)
 	telemetryHub := telemetry.NewHub()
 
 	// Services
-	authService := services.NewAuthService(userRepo, logger, cfg)
+	tokenService := services.NewTokenService(cfg.JWTSecret)
+	authService := services.NewAuthService(userRepo, tokenService)
+	roleService := services.NewRoleService(userRepo, logger)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	deployHandler := handlers.NewDeploymentHandler(deployRepo, cryptoService, telemetryHub)
 
-	authMiddleware := middleware.NewAuthMiddleware(authService, logger)
+	authMiddleware := middleware.NewAuthMiddleware(authService, roleService, userRepo, logger)
 
 	// --- 5. Background Workers ---
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
@@ -133,7 +136,7 @@ func main() {
 	go healthProber.Start(workerCtx)
 
 	// App Availability Monitor
-	appMonitor := workers.NewAppMonitor(appRepo, logger, 1*time.Minute)
+	appMonitor := workers.NewAppMonitor(appRepo, auditRepo, logger, 1*time.Minute)
 	go appMonitor.Start(workerCtx)
 
 	// --- 6. HTTP Gateway ---

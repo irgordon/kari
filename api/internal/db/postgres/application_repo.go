@@ -7,9 +7,9 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/irgordon/kari/api/internal/core/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"kari/api/internal/core/domain"
 )
 
 type ApplicationRepo struct {
@@ -102,4 +102,47 @@ func (r *ApplicationRepo) Delete(ctx context.Context, id uuid.UUID) error {
 		return domain.ErrNotFound
 	}
 	return nil
+}
+
+func (r *ApplicationRepo) UpdateEnvVars(ctx context.Context, id uuid.UUID, envVars map[string]string) error {
+	query := `UPDATE applications SET env_vars = $1, updated_at = NOW() WHERE id = $2`
+	tag, err := r.pool.Exec(ctx, query, envVars, id)
+	if err != nil {
+		return fmt.Errorf("failed to update application env vars: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *ApplicationRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
+	query := `UPDATE applications SET status = $1, updated_at = NOW() WHERE id = $2`
+	tag, err := r.pool.Exec(ctx, query, status, id)
+	if err != nil {
+		return fmt.Errorf("failed to update application status: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *ApplicationRepo) ListAllActive(ctx context.Context) ([]domain.Application, error) {
+	query := `
+		SELECT id, domain_id, repo_url, branch, build_command, start_command, env_vars, port, app_user, status, created_at, updated_at
+		FROM applications
+		WHERE status = 'running'
+	`
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active applications: %w", err)
+	}
+	defer rows.Close()
+
+	apps, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.Application])
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect active applications: %w", err)
+	}
+	return apps, nil
 }

@@ -2,9 +2,9 @@ package http
 
 import (
 	"fmt"
-	"net/http"
-	"kari/api/internal/telemetry"
 	"github.com/go-chi/chi/v5"
+	"github.com/irgordon/kari/api/internal/telemetry"
+	"net/http"
 )
 
 type LogHandler struct {
@@ -34,7 +34,7 @@ func (h *LogHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Detect client disconnect
 	rc := http.NewResponseController(w)
-	
+
 	fmt.Fprintf(w, "event: connected\ndata: {\"status\": \"streaming\"}\n\n")
 	rc.Flush()
 

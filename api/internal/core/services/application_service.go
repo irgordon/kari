@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
-	"kari/api/internal/core/domain"
-	pb "kari/api/internal/grpc/rustagent"
+	"github.com/irgordon/kari/api/internal/core/domain"
+	pb "github.com/irgordon/kari/api/internal/grpc/rustagent"
 )
 
 type ApplicationService struct {

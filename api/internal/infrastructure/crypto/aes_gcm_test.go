@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"kari/api/internal/infrastructure/crypto"
+	"github.com/irgordon/kari/api/internal/infrastructure/crypto"
 )
 
 // generateTestKey creates a random 256-bit AES key in hex

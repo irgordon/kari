@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/domain"
 )
 
 type EnvVarService struct {
@@ -37,7 +37,7 @@ func (s *EnvVarService) UpdateSecrets(ctx context.Context, appID uuid.UUID, vars
 	}
 
 	// 🛡️ 2. AEAD Encryption: Bind to AppID as Associated Data
-	// This ensures that even if a database row is leaked, the secret 
+	// This ensures that even if a database row is leaked, the secret
 	// cannot be decrypted and used for a DIFFERENT application.
 	ciphertext, err := s.cryptoService.Encrypt(ctx, plaintext, appID.NodeID())
 	if err != nil {
