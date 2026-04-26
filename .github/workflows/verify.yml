@@ -1,3 +1,4 @@
+# .github/workflows/verify.yml
 name: Kari Verify
 
 on:
@@ -38,7 +39,7 @@ jobs:
           node-version: '24'
 
       # ------------------------------------------------------------
-      # 2. Protobuf toolchain (REQUIRED for Rust agent + proto-check)
+      # 2. Protobuf toolchain (required)
       # ------------------------------------------------------------
 
       - name: Install protobuf tooling
