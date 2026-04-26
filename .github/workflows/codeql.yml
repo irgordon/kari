@@ -1,5 +1,80 @@
-- name: Initialize CodeQL
-  uses: github/codeql-action/init@v3
-  with:
-    languages: go, rust, javascript
-    config-file: ./.github/codeql/codeql-config.yml
+# .github/workflows/codeql.yml
+name: "Kari CodeQL"
+
+on:
+  push:
+    branches: [ "main", "work" ]
+  pull_request:
+    branches: [ "main", "work" ]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------
+      # Cache CodeQL database
+      # ------------------------------------------------------------
+      - name: Cache CodeQL
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/codeql
+          key: ${{ runner.os }}-codeql-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-codeql-
+
+      # ------------------------------------------------------------
+      # Initialize CodeQL
+      # ------------------------------------------------------------
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go, rust, javascript
+          config-file: ./.github/codeql/codeql-config.yml
+
+      # ------------------------------------------------------------
+      # Manual build (avoids autobuild issues)
+      # ------------------------------------------------------------
+      - name: Install toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          sudo apt-get install -y pkg-config libssl-dev
+
+          # Go
+          sudo snap install go --classic || true
+
+          # Node
+          sudo apt-get install -y nodejs npm || true
+
+      - name: Build Go backend
+        run: |
+          cd backend
+          go mod download
+          go build ./...
+
+      - name: Build Rust agent
+        run: |
+          cd agent
+          cargo build --release
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      # ------------------------------------------------------------
+      # Run CodeQL analysis
+      # ------------------------------------------------------------
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
