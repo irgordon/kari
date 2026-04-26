@@ -5,22 +5,22 @@ use std::sync::Arc;
 use tokio::net::UnixListener;
 use tokio::signal;
 use tonic::transport::Server;
-use tracing::{info, error, warn, debug};
+use tracing::{debug, error, info, warn};
 
 mod config;
 mod server;
 mod sys;
 
 use crate::config::AgentConfig;
-use crate::server::kari_agent::system_agent_server::SystemAgentServer;
 use crate::server::KariAgentService;
+use crate::server::kari_agent::system_agent_server::SystemAgentServer;
 
 // 🛡️ SOLID: Import trait types for discovery, concrete types for construction
-use crate::sys::traits::ProxyManager;
-use crate::sys::proxy::{ApacheManager, NginxManager};
 use crate::sys::firewall::LinuxFirewallManager;
-use crate::sys::ssl::LinuxSslEngine;
+use crate::sys::proxy::{ApacheManager, NginxManager};
 use crate::sys::scheduler::SystemdTimerManager;
+use crate::sys::ssl::LinuxSslEngine;
+use crate::sys::traits::ProxyManager;
 
 /// 🛡️ SLA: Automatic Proxy Discovery
 /// Probes the host system to determine the available ingress controller.
@@ -48,9 +48,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = AgentConfig::load();
     let socket_path = PathBuf::from(&config.socket_path);
-    
+
     // 🛡️ Zero-Trust: Safe parent resolution
-    let socket_dir = socket_path.parent().ok_or("Invalid socket path: no parent directory")?;
+    let socket_dir = socket_path
+        .parent()
+        .ok_or("Invalid socket path: no parent directory")?;
 
     // 2. Filesystem Preparation
     if !socket_dir.exists() {
@@ -68,12 +70,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let firewall_mgr = Arc::new(LinuxFirewallManager::new());
     let ssl_engine = Arc::new(LinuxSslEngine::new(config.ssl_storage_dir.clone()));
     let job_scheduler = Arc::new(SystemdTimerManager::new(
-        config.systemd_dir.to_string_lossy().to_string()
+        config.systemd_dir.to_string_lossy().to_string(),
     ));
 
     // 4. Bind and Secure the Socket
     let listener = UnixListener::bind(&socket_path)?;
-    
+
     let mut perms = fs::metadata(&socket_path)?.permissions();
     perms.set_mode(0o660); // rw-rw----
     fs::set_permissions(&socket_path, perms)?;
@@ -85,7 +87,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &socket_path,
         Some(nix::unistd::Uid::from_raw(uid)),
         Some(nix::unistd::Gid::from_raw(gid)),
-    ).map_err(|e| format!("SLA Failure: Failed to chown socket: {}", e))?;
+    )
+    .map_err(|e| format!("SLA Failure: Failed to chown socket: {}", e))?;
 
     // 5. Peer Credential Guard (Kernel-Level Auth)
     let incoming_stream = async_stream::stream! {
@@ -111,18 +114,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // 6. Start the Service
-    let agent_service = KariAgentService::new(
-        config,
-        proxy_mgr,
-        firewall_mgr,
-        ssl_engine,
-        job_scheduler,
-    );
+    let agent_service =
+        KariAgentService::new(config, proxy_mgr, firewall_mgr, ssl_engine, job_scheduler);
     let grpc_server = Server::builder()
         .add_service(SystemAgentServer::new(agent_service))
         .serve_with_incoming(incoming_stream);
 
-    info!("⚙️ Agent listening on {:?} [Target UID: {}]", socket_path, uid);
+    info!(
+        "⚙️ Agent listening on {:?} [Target UID: {}]",
+        socket_path, uid
+    );
 
     // 7. Graceful Shutdown
     tokio::select! {

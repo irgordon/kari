@@ -42,9 +42,12 @@ impl FirewallManager for LinuxFirewallManager {
 
         for proto in &protocols {
             let mut args = vec![
-                "-A".to_string(), "INPUT".to_string(),
-                "-p".to_string(), proto.to_string(),
-                "--dport".to_string(), policy.port.to_string(),
+                "-A".to_string(),
+                "INPUT".to_string(),
+                "-p".to_string(),
+                proto.to_string(),
+                "--dport".to_string(),
+                policy.port.to_string(),
             ];
 
             // 🛡️ Zero-Trust: Source IP filtering (optional)
@@ -72,9 +75,14 @@ impl FirewallManager for LinuxFirewallManager {
 
             info!(
                 "🛡️ Firewall: {} {} port {}/{}",
-                action_str, 
-                policy.source_ip.as_ref().map(|ip| format!("from {}", ip)).unwrap_or_default(),
-                policy.port, proto
+                action_str,
+                policy
+                    .source_ip
+                    .as_ref()
+                    .map(|ip| format!("from {}", ip))
+                    .unwrap_or_default(),
+                policy.port,
+                proto
             );
         }
 
@@ -143,8 +151,18 @@ mod tests {
 
     #[test]
     fn valid_port_boundaries() {
-        let low = FirewallPolicy { port: 1, action: FirewallAction::Allow, protocol: Protocol::Tcp, source_ip: None };
-        let high = FirewallPolicy { port: 65535, action: FirewallAction::Allow, protocol: Protocol::Tcp, source_ip: None };
+        let low = FirewallPolicy {
+            port: 1,
+            action: FirewallAction::Allow,
+            protocol: Protocol::Tcp,
+            source_ip: None,
+        };
+        let high = FirewallPolicy {
+            port: 65535,
+            action: FirewallAction::Allow,
+            protocol: Protocol::Tcp,
+            source_ip: None,
+        };
         assert_eq!(low.port, 1);
         assert_eq!(high.port, 65535);
     }
@@ -174,24 +192,51 @@ mod tests {
     #[test]
     fn args_with_source_ip() {
         let policy = FirewallPolicy {
-            port: 443, action: FirewallAction::Allow,
-            protocol: Protocol::Tcp, source_ip: Some("192.168.1.100".to_string()),
+            port: 443,
+            action: FirewallAction::Allow,
+            protocol: Protocol::Tcp,
+            source_ip: Some("192.168.1.100".to_string()),
         };
         let mut args = vec!["-A", "INPUT", "-p", "tcp", "--dport", "443"];
-        if let Some(ref ip) = policy.source_ip { args.extend(["-s", ip.as_str()]); }
+        if let Some(ref ip) = policy.source_ip {
+            args.extend(["-s", ip.as_str()]);
+        }
         args.extend(["-j", "ACCEPT"]);
-        assert_eq!(args, vec!["-A", "INPUT", "-p", "tcp", "--dport", "443", "-s", "192.168.1.100", "-j", "ACCEPT"]);
+        assert_eq!(
+            args,
+            vec![
+                "-A",
+                "INPUT",
+                "-p",
+                "tcp",
+                "--dport",
+                "443",
+                "-s",
+                "192.168.1.100",
+                "-j",
+                "ACCEPT"
+            ]
+        );
     }
 
     #[test]
     fn args_without_source_ip() {
         let policy = FirewallPolicy {
-            port: 80, action: FirewallAction::Deny,
-            protocol: Protocol::Udp, source_ip: None,
+            port: 80,
+            action: FirewallAction::Deny,
+            protocol: Protocol::Udp,
+            source_ip: None,
         };
-        let mut args: Vec<String> = vec!["-A", "INPUT", "-p", "udp", "--dport", "80"].iter().map(|s| s.to_string()).collect();
-        if let Some(ref ip) = policy.source_ip { args.push("-s".into()); args.push(ip.clone()); }
-        args.push("-j".into()); args.push("DROP".into());
+        let mut args: Vec<String> = vec!["-A", "INPUT", "-p", "udp", "--dport", "80"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        if let Some(ref ip) = policy.source_ip {
+            args.push("-s".into());
+            args.push(ip.clone());
+        }
+        args.push("-j".into());
+        args.push("DROP".into());
         assert!(!args.contains(&"-s".to_string()));
         assert_eq!(args.len(), 8);
     }
@@ -200,8 +245,10 @@ mod tests {
     fn source_ip_cidr_patterns_stored_correctly() {
         for cidr in &["10.0.0.0/8", "192.168.1.0/24", "172.16.0.0/12", "0.0.0.0/0"] {
             let p = FirewallPolicy {
-                port: 80, action: FirewallAction::Allow,
-                protocol: Protocol::Tcp, source_ip: Some(cidr.to_string()),
+                port: 80,
+                action: FirewallAction::Allow,
+                protocol: Protocol::Tcp,
+                source_ip: Some(cidr.to_string()),
             };
             assert_eq!(p.source_ip.as_deref(), Some(*cidr));
         }

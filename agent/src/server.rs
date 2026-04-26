@@ -1,26 +1,25 @@
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
-use std::sync::{Arc, Mutex};
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use sysinfo::System;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use tracing::{info, warn};
 use zeroize::Zeroizing;
-use sysinfo::System;
 
 use crate::config::AgentConfig;
 use crate::sys::build::SystemBuildManager;
 use crate::sys::git::SystemGitManager;
 use crate::sys::jail::{JailManager, LinuxJailManager};
-use crate::sys::systemd::{LinuxSystemdManager, ServiceManager, ServiceConfig};
-use crate::sys::traits::{
-    ProxyManager, FirewallManager, SslEngine, JobScheduler,
-    GitManager, BuildManager,
-    FirewallAction, Protocol, FirewallPolicy as TraitFirewallPolicy,
-    SslPayload as TraitSslPayload, JobIntent as TraitJobIntent,
-};
 use crate::sys::secrets::ProviderCredential;
+use crate::sys::systemd::{LinuxSystemdManager, ServiceConfig, ServiceManager};
+use crate::sys::traits::{
+    BuildManager, FirewallAction, FirewallManager, FirewallPolicy as TraitFirewallPolicy,
+    GitManager, JobIntent as TraitJobIntent, JobScheduler, Protocol, ProxyManager, SslEngine,
+    SslPayload as TraitSslPayload,
+};
 use zeroize::Zeroize;
 
 // Import the generated gRPC types
@@ -30,9 +29,9 @@ pub mod kari_agent {
 
 use kari_agent::system_agent_server::SystemAgent;
 use kari_agent::{
-    AgentResponse, DeployRequest, DeleteRequest, TeardownRequest, PackageRequest, Empty, SystemStatus,
-    ServiceRequest, LogChunk, ProvisionJailRequest, FileWriteRequest,
-    SslPayload, FirewallPolicy, JobIntent,
+    AgentResponse, DeleteRequest, DeployRequest, Empty, FileWriteRequest, FirewallPolicy,
+    JobIntent, LogChunk, PackageRequest, ProvisionJailRequest, ServiceRequest, SslPayload,
+    SystemStatus, TeardownRequest,
 };
 
 const ALLOWED_PKG_COMMANDS: &[&str] = &["apt-get", "apt", "dnf", "yum", "zypper"];
@@ -79,17 +78,28 @@ impl KariAgentService {
 
     /// 🛡️ Zero-Trust: Strictly prevents directory traversal
     fn secure_join(base: &Path, unsafe_suffix: &str) -> Result<std::path::PathBuf, Status> {
-        if unsafe_suffix.contains("..") || unsafe_suffix.contains('/') || unsafe_suffix.contains('\\') {
-            return Err(Status::invalid_argument("Path traversal detected in identifier"));
+        if unsafe_suffix.contains("..")
+            || unsafe_suffix.contains('/')
+            || unsafe_suffix.contains('\\')
+        {
+            return Err(Status::invalid_argument(
+                "Path traversal detected in identifier",
+            ));
         }
         Ok(base.join(unsafe_suffix))
     }
 
     /// 🛡️ Zero-Trust: Validates that a string is a safe alphanumeric-dash identifier
     fn validate_identifier(value: &str, field_name: &str) -> Result<(), Status> {
-        if value.is_empty() || value.contains("..") || !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        if value.is_empty()
+            || value.contains("..")
+            || !value
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        {
             return Err(Status::invalid_argument(format!(
-                "Zero-Trust: Invalid {} format: '{}'", field_name, value
+                "Zero-Trust: Invalid {} format: '{}'",
+                field_name, value
             )));
         }
         Ok(())
@@ -104,22 +114,33 @@ impl KariAgentService {
         }
 
         if domain.contains("..") || domain.contains('/') || domain.contains('\\') {
-            return Err(Status::invalid_argument("Path traversal detected in domain name"));
+            return Err(Status::invalid_argument(
+                "Path traversal detected in domain name",
+            ));
         }
 
         // Nginx configuration injection prevention:
         // Strictly allow only alphanumeric, dots, hyphens, and underscores.
         // Underscores are technically not allowed in DNS hostnames but are allowed in Nginx server_names.
-        if !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
+        if !domain
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+        {
             return Err(Status::invalid_argument(format!(
-                "Zero-Trust: Invalid domain name format: '{}' (contains potentially dangerous characters)", domain
+                "Zero-Trust: Invalid domain name format: '{}' (contains potentially dangerous characters)",
+                domain
             )));
         }
 
         // Ensure it doesn't start or end with a hyphen or dot (basic RFC compliance + Nginx safety)
-        if domain.starts_with('-') || domain.ends_with('-') || domain.starts_with('.') || domain.ends_with('.') {
-             return Err(Status::invalid_argument(format!(
-                "Zero-Trust: Invalid domain name format: '{}' (cannot start/end with '-' or '.')", domain
+        if domain.starts_with('-')
+            || domain.ends_with('-')
+            || domain.starts_with('.')
+            || domain.ends_with('.')
+        {
+            return Err(Status::invalid_argument(format!(
+                "Zero-Trust: Invalid domain name format: '{}' (cannot start/end with '-' or '.')",
+                domain
             )));
         }
 
@@ -138,7 +159,6 @@ impl SystemAgent for KariAgentService {
         &self,
         _request: Request<Empty>,
     ) -> Result<Response<SystemStatus>, Status> {
-
         // ⚡ Performance: Reuse System instance
         let mut sys = self.system_monitor.lock().unwrap();
         sys.refresh_all();
@@ -150,11 +170,10 @@ impl SystemAgent for KariAgentService {
         let memory_usage_mb = (used_memory / 1_048_576.0) as f32;
 
         // Active jails: count systemd services matching our naming convention
-        let active_jails = sys.processes()
+        let active_jails = sys
+            .processes()
             .values()
-            .filter(|p| {
-                p.name().starts_with("kari-")
-            })
+            .filter(|p| p.name().starts_with("kari-"))
             .count() as u32;
 
         let uptime = System::uptime();
@@ -177,10 +196,10 @@ impl SystemAgent for KariAgentService {
         request: Request<PackageRequest>,
     ) -> Result<Response<AgentResponse>, Status> {
         let req = request.into_inner();
-        
+
         if !ALLOWED_PKG_COMMANDS.contains(&req.command.as_str()) {
             return Err(Status::permission_denied(
-                "Zero-Trust: Command not in allowlist"
+                "Zero-Trust: Command not in allowlist",
             ));
         }
 
@@ -220,13 +239,17 @@ impl SystemAgent for KariAgentService {
         self.jail_mgr
             .provision_app_user(&app_user, 0) // UID auto-assigned by useradd
             .await
-            .map_err(|e| Status::internal(format!("[SLA ERROR] User provisioning failed: {}", e)))?;
+            .map_err(|e| {
+                Status::internal(format!("[SLA ERROR] User provisioning failed: {}", e))
+            })?;
 
         // Step 2: Create and secure the application directory
         self.jail_mgr
             .secure_directory(&app_dir, &app_user)
             .await
-            .map_err(|e| Status::internal(format!("[SLA ERROR] Directory jailing failed: {}", e)))?;
+            .map_err(|e| {
+                Status::internal(format!("[SLA ERROR] Directory jailing failed: {}", e))
+            })?;
 
         // Step 3: Write systemd unit file with cgroup v2 resource limits
         let svc_config = ServiceConfig {
@@ -242,7 +265,9 @@ impl SystemAgent for KariAgentService {
         self.svc_mgr
             .write_unit_file(&svc_config)
             .await
-            .map_err(|e| Status::internal(format!("[SLA ERROR] Unit file creation failed: {}", e)))?;
+            .map_err(|e| {
+                Status::internal(format!("[SLA ERROR] Unit file creation failed: {}", e))
+            })?;
 
         // Step 4: Reload systemd and enable the service
         self.svc_mgr
@@ -253,7 +278,9 @@ impl SystemAgent for KariAgentService {
         self.svc_mgr
             .enable_and_start(&service_name)
             .await
-            .map_err(|e| Status::internal(format!("[SLA ERROR] Service activation failed: {}", e)))?;
+            .map_err(|e| {
+                Status::internal(format!("[SLA ERROR] Service activation failed: {}", e))
+            })?;
 
         // 🛡️ Privacy: Clear the transient env variables from RAM
         let mut transient_req = req;
@@ -261,12 +288,18 @@ impl SystemAgent for KariAgentService {
             val.zeroize();
         }
 
-        info!("🔒 Jail provisioned: {} (user: {}, mem: {}MB)", service_name, app_user, transient_req.memory_limit_mb);
+        info!(
+            "🔒 Jail provisioned: {} (user: {}, mem: {}MB)",
+            service_name, app_user, transient_req.memory_limit_mb
+        );
 
         Ok(Response::new(AgentResponse {
             success: true,
             exit_code: 0,
-            stdout: format!("Jail '{}' provisioned with {}MB memory limit", service_name, transient_req.memory_limit_mb),
+            stdout: format!(
+                "Jail '{}' provisioned with {}MB memory limit",
+                service_name, transient_req.memory_limit_mb
+            ),
             stderr: String::new(),
             error_message: String::new(),
         }))
@@ -287,7 +320,7 @@ impl SystemAgent for KariAgentService {
         // 🛡️ Zero-Trust: Only allow management of kari-prefixed services
         if !req.service_name.starts_with("kari-") {
             return Err(Status::permission_denied(
-                "Zero-Trust: Refusing to manage non-Kari service"
+                "Zero-Trust: Refusing to manage non-Kari service",
             ));
         }
 
@@ -305,7 +338,10 @@ impl SystemAgent for KariAgentService {
 
         match result {
             Ok(()) => {
-                info!("⚙️ Service {} action {:?} succeeded", req.service_name, action);
+                info!(
+                    "⚙️ Service {} action {:?} succeeded",
+                    req.service_name, action
+                );
                 Ok(Response::new(AgentResponse {
                     success: true,
                     exit_code: 0,
@@ -338,7 +374,7 @@ impl SystemAgent for KariAgentService {
         Self::validate_domain_name(&req.domain_name)?;
 
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S").to_string();
-        
+
         let base_dir = Self::secure_join(&self.config.web_root, &req.domain_name)?;
         let release_dir = base_dir.join("releases").join(&timestamp);
         let app_user = format!("kari-app-{}", req.app_id);
@@ -354,12 +390,18 @@ impl SystemAgent for KariAgentService {
 
         tokio::spawn(async move {
             let t = req.trace_id.clone();
-            let log = |m: &str| LogChunk { content: m.to_string(), trace_id: t.clone() };
+            let log = |m: &str| LogChunk {
+                content: m.to_string(),
+                trace_id: t.clone(),
+            };
 
             // -- Step 1: Secure Git Clone --
             let ssh_cred = req.ssh_key.map(ProviderCredential::from_string);
             let _ = tx.send(Ok(log("📦 Pulling source...\n"))).await;
-            if let Err(e) = git.clone_repo(&req.repo_url, &req.branch, &release_dir, ssh_cred).await {
+            if let Err(e) = git
+                .clone_repo(&req.repo_url, &req.branch, &release_dir, ssh_cred)
+                .await
+            {
                 let _ = tx.send(Ok(log(&format!("❌ Git Error: {}\n", e)))).await;
                 return;
             }
@@ -368,14 +410,25 @@ impl SystemAgent for KariAgentService {
             // (ssh_cred ownership transferred to clone_repo; zeroized on drop)
             let _ = tx.send(Ok(log("🔒 Securing directory...\n"))).await;
             if let Err(e) = jail.secure_directory(&release_dir, &app_user).await {
-                let _ = tx.send(Ok(log(&format!("❌ Security Error: {}\n", e)))).await;
+                let _ = tx
+                    .send(Ok(log(&format!("❌ Security Error: {}\n", e))))
+                    .await;
                 return;
             }
 
             // -- Step 3: Isolated Build --
             let _ = tx.send(Ok(log("🏗️ Executing build...\n"))).await;
             let mut envs: HashMap<String, String> = req.env_vars.into_iter().collect();
-            let build_res = build.execute_build(&req.build_command, &release_dir, &app_user, &envs, tx.clone(), t.clone()).await;
+            let build_res = build
+                .execute_build(
+                    &req.build_command,
+                    &release_dir,
+                    &app_user,
+                    &envs,
+                    tx.clone(),
+                    t.clone(),
+                )
+                .await;
 
             // 🛡️ Privacy: Clear the build environment variables from RAM
             for (_, mut val) in envs.drain() {
@@ -389,8 +442,10 @@ impl SystemAgent for KariAgentService {
 
             // -- Step 4: Proxy & Service Activation --
             let service_name = format!("kari-{}", req.domain_name);
-            let _ = tx.send(Ok(log("🌐 Updating Proxy & Restarting...\n"))).await;
-            
+            let _ = tx
+                .send(Ok(log("🌐 Updating Proxy & Restarting...\n")))
+                .await;
+
             let port = req.port.unwrap_or(3000) as u16;
             // 🛡️ Zero-Trust: ProxyManager implementation strictly validates domain_name to prevent Nginx/Apache injection.
             // This is Defense-in-Depth as validate_identifier() also checks it upstream.
@@ -400,7 +455,9 @@ impl SystemAgent for KariAgentService {
             }
 
             if let Err(e) = svc.restart(&service_name).await {
-                let _ = tx.send(Ok(log(&format!("❌ Service Error: {}\n", e)))).await;
+                let _ = tx
+                    .send(Ok(log(&format!("❌ Service Error: {}\n", e))))
+                    .await;
                 return;
             }
 
@@ -434,16 +491,23 @@ impl SystemAgent for KariAgentService {
         let _ = self.jail_mgr.deprovision_app_user(&app_user).await;
 
         if app_dir.exists() {
-            tokio::fs::remove_dir_all(&app_dir)
-                .await
-                .map_err(|e| Status::internal(format!(
-                    "[SLA ERROR] Filesystem purge failed for {}: {}", req.domain_name, e
-                )))?;
+            tokio::fs::remove_dir_all(&app_dir).await.map_err(|e| {
+                Status::internal(format!(
+                    "[SLA ERROR] Filesystem purge failed for {}: {}",
+                    req.domain_name, e
+                ))
+            })?;
         }
 
-        info!("🔥 Deployment torn down: {} (user: {})", service_name, app_user);
+        info!(
+            "🔥 Deployment torn down: {} (user: {})",
+            service_name, app_user
+        );
 
-        Ok(Response::new(AgentResponse { success: true, ..Default::default() }))
+        Ok(Response::new(AgentResponse {
+            success: true,
+            ..Default::default()
+        }))
     }
 
     // =========================================================================
@@ -474,7 +538,10 @@ impl SystemAgent for KariAgentService {
             warn!("⚠️ Teardown warning for {}: {}", service_name, stderr);
         }
 
-        info!("🔥 Jail torn down: {} (trace: {})", service_name, req.trace_id);
+        info!(
+            "🔥 Jail torn down: {} (trace: {})",
+            service_name, req.trace_id
+        );
 
         Ok(Response::new(AgentResponse {
             success: true,
@@ -503,23 +570,28 @@ impl SystemAgent for KariAgentService {
             self.config.systemd_dir.as_path(),
         ];
 
-        let is_allowed = allowed_prefixes.iter().any(|prefix| path.starts_with(prefix));
+        let is_allowed = allowed_prefixes
+            .iter()
+            .any(|prefix| path.starts_with(prefix));
         if !is_allowed {
             return Err(Status::permission_denied(format!(
-                "Zero-Trust: Path '{}' is outside all allowed boundaries", req.absolute_path
+                "Zero-Trust: Path '{}' is outside all allowed boundaries",
+                req.absolute_path
             )));
         }
 
         // 🛡️ Zero-Trust: Prevent path traversal
         if req.absolute_path.contains("..") {
-            return Err(Status::invalid_argument("Zero-Trust: Path traversal detected"));
+            return Err(Status::invalid_argument(
+                "Zero-Trust: Path traversal detected",
+            ));
         }
 
         // Write the content
         if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(|e| Status::internal(format!("[SLA ERROR] Directory creation failed: {}", e)))?;
+            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                Status::internal(format!("[SLA ERROR] Directory creation failed: {}", e))
+            })?;
         }
 
         tokio::fs::write(path, &req.content)
@@ -535,9 +607,9 @@ impl SystemAgent for KariAgentService {
                 .map_err(|e| Status::internal(format!("[SLA ERROR] Metadata read failed: {}", e)))?
                 .permissions();
             perms.set_mode(mode);
-            tokio::fs::set_permissions(path, perms)
-                .await
-                .map_err(|e| Status::internal(format!("[SLA ERROR] Permission set failed: {}", e)))?;
+            tokio::fs::set_permissions(path, perms).await.map_err(|e| {
+                Status::internal(format!("[SLA ERROR] Permission set failed: {}", e))
+            })?;
         }
 
         // Apply ownership
@@ -562,7 +634,10 @@ impl SystemAgent for KariAgentService {
             }
         }
 
-        info!("📝 File written: {} (trace: {})", req.absolute_path, req.trace_id);
+        info!(
+            "📝 File written: {} (trace: {})",
+            req.absolute_path, req.trace_id
+        );
 
         Ok(Response::new(AgentResponse {
             success: true,
@@ -596,14 +671,19 @@ impl SystemAgent for KariAgentService {
                 .map_err(|_| Status::invalid_argument("fullchain_pem is not valid UTF-8"))?,
             privkey_pem: ProviderCredential::from_string(
                 String::from_utf8(privkey_bytes.to_vec())
-                    .map_err(|_| Status::invalid_argument("privkey_pem is not valid UTF-8"))?
+                    .map_err(|_| Status::invalid_argument("privkey_pem is not valid UTF-8"))?,
             ),
         };
 
         self.ssl_engine
             .install_certificate(trait_payload)
             .await
-            .map_err(|e| Status::internal(format!("[SLA ERROR] Certificate installation failed: {}", e)))?;
+            .map_err(|e| {
+                Status::internal(format!(
+                    "[SLA ERROR] Certificate installation failed: {}",
+                    e
+                ))
+            })?;
 
         info!("🔐 Certificate installed for domain: {}", req.domain_name);
 
@@ -692,13 +772,15 @@ impl SystemAgent for KariAgentService {
         Self::validate_identifier(&req.run_as_user, "run_as_user")?;
 
         if req.binary.is_empty() {
-            return Err(Status::invalid_argument("Zero-Trust: Binary path cannot be empty"));
+            return Err(Status::invalid_argument(
+                "Zero-Trust: Binary path cannot be empty",
+            ));
         }
 
         // 🛡️ Zero-Trust: Reject binaries with shell metacharacters
         if req.binary.contains(';') || req.binary.contains('&') || req.binary.contains('|') {
             return Err(Status::permission_denied(
-                "Zero-Trust: Shell metacharacters detected in binary path"
+                "Zero-Trust: Shell metacharacters detected in binary path",
             ));
         }
 
@@ -824,7 +906,11 @@ mod tests {
         for domain in malicious_domains {
             // Check if validate_domain_name catches it (it should)
             let result = KariAgentService::validate_domain_name(domain);
-            assert!(result.is_err(), "validate_domain_name failed to reject malicious domain: '{}'", domain);
+            assert!(
+                result.is_err(),
+                "validate_domain_name failed to reject malicious domain: '{}'",
+                domain
+            );
         }
 
         // 2. Verify invalid start/end chars
@@ -835,21 +921,24 @@ mod tests {
             "example.com.",
         ];
         for domain in invalid_edge_cases {
-             let result = KariAgentService::validate_domain_name(domain);
-             assert!(result.is_err(), "validate_domain_name failed to reject invalid start/end chars: '{}'", domain);
+            let result = KariAgentService::validate_domain_name(domain);
+            assert!(
+                result.is_err(),
+                "validate_domain_name failed to reject invalid start/end chars: '{}'",
+                domain
+            );
         }
 
         // 3. Verify valid domains pass
-        let valid_domains = vec![
-            "example.com",
-            "sub.example.com",
-            "my-site.net",
-            "v1.api.io",
-        ];
+        let valid_domains = vec!["example.com", "sub.example.com", "my-site.net", "v1.api.io"];
 
         for domain in valid_domains {
             let result = KariAgentService::validate_domain_name(domain);
-            assert!(result.is_ok(), "validate_domain_name rejected valid domain: '{}'", domain);
+            assert!(
+                result.is_ok(),
+                "validate_domain_name rejected valid domain: '{}'",
+                domain
+            );
         }
     }
 }

@@ -65,7 +65,7 @@ impl LinuxSystemdManager {
 impl ServiceManager for LinuxSystemdManager {
     async fn write_unit_file(&self, config: &ServiceConfig) -> Result<(), String> {
         let path = self.get_unit_path(&config.service_name)?;
-        
+
         // 1. 🛡️ Secure Environment Block Generation (Strict POSIX Validation)
         let mut env_block = String::new();
         for (k, v) in &config.env_vars {
@@ -75,7 +75,7 @@ impl ServiceManager for LinuxSystemdManager {
                 tracing::warn!("Dropping invalid environment variable key: {}", k);
                 continue;
             }
-            
+
             // Values: Escape double quotes and backslashes for safe systemd parsing
             let safe_v = v.replace('\\', "\\\\").replace('"', "\\\"");
             env_block.push_str(&format!("Environment=\"{}={}\"\n", k, safe_v));
@@ -131,12 +131,19 @@ WantedBy=multi-user.target
         );
 
         // Write the file to disk
-        fs::write(&path, unit_content).await.map_err(|e| e.to_string())?;
-        
+        fs::write(&path, unit_content)
+            .await
+            .map_err(|e| e.to_string())?;
+
         // 2. 🛡️ Ensure standard 644 permissions (rw-r--r--)
-        let mut perms = fs::metadata(&path).await.map_err(|e| e.to_string())?.permissions();
+        let mut perms = fs::metadata(&path)
+            .await
+            .map_err(|e| e.to_string())?
+            .permissions();
         perms.set_mode(0o644);
-        fs::set_permissions(&path, perms).await.map_err(|e| e.to_string())?;
+        fs::set_permissions(&path, perms)
+            .await
+            .map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -144,7 +151,9 @@ WantedBy=multi-user.target
     async fn remove_unit_file(&self, service_name: &str) -> Result<(), String> {
         let path = self.get_unit_path(service_name)?;
         if path.exists() {
-            fs::remove_file(&path).await.map_err(|e| format!("Cleanup failed: {}", e))?;
+            fs::remove_file(&path)
+                .await
+                .map_err(|e| format!("Cleanup failed: {}", e))?;
         }
         Ok(())
     }
@@ -154,7 +163,8 @@ WantedBy=multi-user.target
     }
 
     async fn enable_and_start(&self, service_name: &str) -> Result<(), String> {
-        self.execute_systemctl(&["enable", "--now", service_name]).await
+        self.execute_systemctl(&["enable", "--now", service_name])
+            .await
     }
 
     async fn start(&self, service_name: &str) -> Result<(), String> {

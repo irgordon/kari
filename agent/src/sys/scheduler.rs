@@ -23,9 +23,13 @@ impl SystemdTimerManager {
 #[async_trait]
 impl JobScheduler for SystemdTimerManager {
     async fn schedule_job(&self, intent: &JobIntent) -> Result<(), String> {
-        
         // 🛡️ 1. Zero-Trust Path Traversal Shield
-        if intent.name.is_empty() || !intent.name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        if intent.name.is_empty()
+            || !intent
+                .name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
             return Err("SECURITY VIOLATION: Invalid job name format".into());
         }
 
@@ -104,7 +108,7 @@ WantedBy=timers.target
                 .await
                 .map_err(|e| format!("Failed to read metadata for {}: {}", path, e))?
                 .permissions();
-            
+
             perms.set_mode(0o644);
             fs::set_permissions(path, perms)
                 .await
@@ -132,7 +136,10 @@ WantedBy=timers.target
 
         if !enable_out.status.success() {
             let stderr = String::from_utf8_lossy(&enable_out.stderr);
-            return Err(format!("Failed to activate timer {}: {}", timer_name, stderr));
+            return Err(format!(
+                "Failed to activate timer {}: {}",
+                timer_name, stderr
+            ));
         }
 
         Ok(())
