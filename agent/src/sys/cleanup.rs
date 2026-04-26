@@ -8,18 +8,21 @@ pub struct SystemReleaseManager;
 #[async_trait]
 impl ReleaseManager for SystemReleaseManager {
     // 🛡️ SOLID: Use strongly typed &Path. Path traversal is prevented upstream by `secure_join`.
-    async fn prune_old_releases(&self, releases_dir: &Path, keep_count: usize) -> Result<usize, String> {
-        
+    async fn prune_old_releases(
+        &self,
+        releases_dir: &Path,
+        keep_count: usize,
+    ) -> Result<usize, String> {
         if !releases_dir.exists() {
             return Ok(0); // Nothing to prune
         }
 
         // 1. 🛡️ Active Release Resolution (Absolute Physical Path)
-        // We use canonicalize() which asks the Linux Kernel to follow all symlinks 
+        // We use canonicalize() which asks the Linux Kernel to follow all symlinks
         // and return the absolute, physical path (e.g., /var/www/app/releases/20260221141759).
         let base_dir = releases_dir.parent().unwrap_or(releases_dir);
         let current_symlink = base_dir.join("current");
-        
+
         let active_release_target = fs::canonicalize(&current_symlink)
             .await
             .unwrap_or_else(|_| PathBuf::from("/dev/null/invalid")); // Failsafe if 'current' is broken
@@ -45,7 +48,8 @@ impl ReleaseManager for SystemReleaseManager {
             let name_str = file_name.to_string_lossy();
 
             // 3. Strict Timestamp Validation
-            let is_valid_timestamp = name_str.len() == 14 && name_str.chars().all(|c| c.is_ascii_digit());
+            let is_valid_timestamp =
+                name_str.len() == 14 && name_str.chars().all(|c| c.is_ascii_digit());
 
             if file_type.is_dir() && is_valid_timestamp {
                 paths.push(path);
@@ -57,7 +61,7 @@ impl ReleaseManager for SystemReleaseManager {
 
         let total_releases = paths.len();
         if total_releases <= keep_count {
-            return Ok(0); 
+            return Ok(0);
         }
 
         // We slice the array to get only the oldest ones that exceed our keep_count
@@ -75,7 +79,10 @@ impl ReleaseManager for SystemReleaseManager {
                 .unwrap_or_else(|_| path.clone());
 
             if target_canonical == active_release_target {
-                tracing::info!("🛡️ Skipping active release directory from pruning: {:?}", path);
+                tracing::info!(
+                    "🛡️ Skipping active release directory from pruning: {:?}",
+                    path
+                );
                 continue;
             }
 

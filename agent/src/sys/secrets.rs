@@ -5,7 +5,7 @@ use std::fmt;
 /// It uses the 'secrecy' crate to ensure that once a secret falls out of scope,
 /// its footprint in RAM is physically overwritten with zeros.
 pub struct ProviderCredential {
-    // 🛡️ Zero-Trust: We use SecretString or Secret<Vec<u8>>. 
+    // 🛡️ Zero-Trust: We use SecretString or Secret<Vec<u8>>.
     // Here we use SecretString for provider tokens/passwords.
     token: SecretString,
 }
@@ -14,8 +14,8 @@ impl ProviderCredential {
     /// 🛡️ Hardened constructor: Consumes the String directly.
     pub fn from_string(s: String) -> Self {
         // 1. 🛡️ Absolute Memory Safety (Zero-Copy)
-        // By passing the String directly into SecretString, we transfer ownership of the 
-        // EXACT heap allocation. No `.to_vec()` clones are made. There is only ever 
+        // By passing the String directly into SecretString, we transfer ownership of the
+        // EXACT heap allocation. No `.to_vec()` clones are made. There is only ever
         // one copy of this token in RAM.
         Self {
             token: SecretString::from(s),
@@ -34,17 +34,17 @@ impl ProviderCredential {
     }
 
     /// 🛡️ Proactive Destruction
-    /// Provides a deterministic way to securely wipe the credential from RAM 
+    /// Provides a deterministic way to securely wipe the credential from RAM
     /// before the end of the function scope if it is no longer needed.
     pub fn destroy(self) {
         // By taking `self` by value and letting it fall out of scope immediately,
-        // we trigger the `secrecy` crate's Drop implementation, which physically 
+        // we trigger the `secrecy` crate's Drop implementation, which physically
         // overwrites the memory with zeroes right now.
         drop(self);
     }
 }
 
-// 🛡️ SLA: Explicitly block Debug and Display traits just in case ProviderCredential 
+// 🛡️ SLA: Explicitly block Debug and Display traits just in case ProviderCredential
 // is accidentally wrapped in a format!() macro elsewhere in the codebase.
 impl fmt::Debug for ProviderCredential {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

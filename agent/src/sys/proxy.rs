@@ -1,8 +1,8 @@
+use crate::sys::traits::ProxyManager;
 use async_trait::async_trait;
+use std::path::PathBuf;
 use tokio::fs;
 use tokio::process::Command;
-use std::path::PathBuf;
-use crate::sys::traits::ProxyManager;
 
 /// 🛡️ Zero-Trust: Strictly validates domain names to prevent config injection
 fn validate_domain_format(domain: &str) -> Result<(), String> {
@@ -11,20 +11,34 @@ fn validate_domain_format(domain: &str) -> Result<(), String> {
     }
 
     if domain.contains("..") || domain.contains('/') || domain.contains('\\') {
-        return Err(format!("Zero-Trust: Path traversal detected in domain: '{}'", domain));
+        return Err(format!(
+            "Zero-Trust: Path traversal detected in domain: '{}'",
+            domain
+        ));
     }
 
     // Nginx configuration injection prevention:
     // Strictly allow only alphanumeric, dots, hyphens, and underscores.
     // Underscores are technically not allowed in DNS hostnames but are allowed in Nginx server_names.
-    if !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
-        return Err(format!("Zero-Trust: Invalid characters in domain name: '{}'", domain));
+    if !domain
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+    {
+        return Err(format!(
+            "Zero-Trust: Invalid characters in domain name: '{}'",
+            domain
+        ));
     }
 
     // Ensure it doesn't start or end with a hyphen or dot (basic RFC compliance + Nginx safety)
-    if domain.starts_with('-') || domain.ends_with('-') || domain.starts_with('.') || domain.ends_with('.') {
-         return Err(format!(
-            "Zero-Trust: Invalid domain name format: '{}' (cannot start/end with '-' or '.')", domain
+    if domain.starts_with('-')
+        || domain.ends_with('-')
+        || domain.starts_with('.')
+        || domain.ends_with('.')
+    {
+        return Err(format!(
+            "Zero-Trust: Invalid domain name format: '{}' (cannot start/end with '-' or '.')",
+            domain
         ));
     }
 
@@ -44,14 +58,23 @@ impl ApacheManager {
     }
 
     async fn test_and_reload(&self) -> Result<(), String> {
-        let check = Command::new("apache2ctl").arg("configtest").output().await
+        let check = Command::new("apache2ctl")
+            .arg("configtest")
+            .output()
+            .await
             .map_err(|e| format!("Apache check failed: {}", e))?;
 
         if !check.status.success() {
-            return Err(format!("Apache config error: {}", String::from_utf8_lossy(&check.stderr)));
+            return Err(format!(
+                "Apache config error: {}",
+                String::from_utf8_lossy(&check.stderr)
+            ));
         }
 
-        Command::new("systemctl").args(["reload", "apache2"]).output().await
+        Command::new("systemctl")
+            .args(["reload", "apache2"])
+            .output()
+            .await
             .map_err(|e| format!("Systemd reload failed: {}", e))?;
         Ok(())
     }
@@ -62,8 +85,14 @@ impl ProxyManager for ApacheManager {
     async fn create_vhost(&self, domain: &str, target_port: u16) -> Result<(), String> {
         validate_domain_format(domain)?;
 
-        let config_path = self.base_path.join("sites-available").join(format!("{}.conf", domain));
-        let enabled_link = self.base_path.join("sites-enabled").join(format!("{}.conf", domain));
+        let config_path = self
+            .base_path
+            .join("sites-available")
+            .join(format!("{}.conf", domain));
+        let enabled_link = self
+            .base_path
+            .join("sites-enabled")
+            .join(format!("{}.conf", domain));
 
         let content = format!(
             r#"<VirtualHost *:80>
@@ -73,12 +102,17 @@ impl ProxyManager for ApacheManager {
     ProxyPassReverse / http://127.0.0.1:{target_port}/
     Header always set X-Content-Type-Options "nosniff"
 </VirtualHost>"#,
-            domain = domain, target_port = target_port
+            domain = domain,
+            target_port = target_port
         );
 
-        fs::write(&config_path, content).await.map_err(|e| e.to_string())?;
+        fs::write(&config_path, content)
+            .await
+            .map_err(|e| e.to_string())?;
         if !enabled_link.exists() {
-            fs::symlink(&config_path, &enabled_link).await.map_err(|e| e.to_string())?;
+            fs::symlink(&config_path, &enabled_link)
+                .await
+                .map_err(|e| e.to_string())?;
         }
         self.test_and_reload().await
     }
@@ -86,8 +120,14 @@ impl ProxyManager for ApacheManager {
     async fn remove_vhost(&self, domain: &str) -> Result<(), String> {
         validate_domain_format(domain)?;
 
-        let config_path = self.base_path.join("sites-available").join(format!("{}.conf", domain));
-        let enabled_link = self.base_path.join("sites-enabled").join(format!("{}.conf", domain));
+        let config_path = self
+            .base_path
+            .join("sites-available")
+            .join(format!("{}.conf", domain));
+        let enabled_link = self
+            .base_path
+            .join("sites-enabled")
+            .join(format!("{}.conf", domain));
         let _ = fs::remove_file(enabled_link).await;
         let _ = fs::remove_file(config_path).await;
         self.test_and_reload().await
@@ -107,14 +147,23 @@ impl NginxManager {
     }
 
     async fn test_and_reload(&self) -> Result<(), String> {
-        let check = Command::new("nginx").arg("-t").output().await
+        let check = Command::new("nginx")
+            .arg("-t")
+            .output()
+            .await
             .map_err(|e| format!("Nginx check failed: {}", e))?;
 
         if !check.status.success() {
-            return Err(format!("Nginx config error: {}", String::from_utf8_lossy(&check.stderr)));
+            return Err(format!(
+                "Nginx config error: {}",
+                String::from_utf8_lossy(&check.stderr)
+            ));
         }
 
-        Command::new("systemctl").args(["reload", "nginx"]).output().await
+        Command::new("systemctl")
+            .args(["reload", "nginx"])
+            .output()
+            .await
             .map_err(|e| format!("Systemd reload failed: {}", e))?;
         Ok(())
     }
@@ -140,12 +189,17 @@ impl ProxyManager for NginxManager {
         add_header X-Content-Type-Options "nosniff" always;
     }}
 }}"#,
-            domain = domain, target_port = target_port
+            domain = domain,
+            target_port = target_port
         );
 
-        fs::write(&config_path, content).await.map_err(|e| e.to_string())?;
+        fs::write(&config_path, content)
+            .await
+            .map_err(|e| e.to_string())?;
         if !enabled_link.exists() {
-            fs::symlink(&config_path, &enabled_link).await.map_err(|e| e.to_string())?;
+            fs::symlink(&config_path, &enabled_link)
+                .await
+                .map_err(|e| e.to_string())?;
         }
         self.test_and_reload().await
     }

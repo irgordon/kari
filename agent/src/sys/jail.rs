@@ -1,15 +1,15 @@
 use async_trait::async_trait;
-use tokio::process::Command;
 use std::path::Path;
+use tokio::process::Command;
 
 #[async_trait]
 pub trait JailManager: Send + Sync {
     /// 🛡️ SLA: The UID is dictated by the Brain's intent, not the OS's whims.
     async fn provision_app_user(&self, username: &str, uid: u32) -> Result<(), String>;
-    
+
     /// Kills all user processes and purges the user from the system
     async fn deprovision_app_user(&self, username: &str) -> Result<(), String>;
-    
+
     /// Locks down a directory safely, avoiding TOCTOU symlink races
     async fn secure_directory(&self, path: &Path, username: &str) -> Result<(), String>;
 }
@@ -20,27 +20,36 @@ pub struct LinuxJailManager;
 impl JailManager for LinuxJailManager {
     async fn provision_app_user(&self, username: &str, uid: u32) -> Result<(), String> {
         // 1. 🛡️ Zero-Trust Input Validation
-        if username.is_empty() || !username.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            return Err(format!("SECURITY VIOLATION: Invalid username '{}'", username));
+        if username.is_empty()
+            || !username
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
+            return Err(format!(
+                "SECURITY VIOLATION: Invalid username '{}'",
+                username
+            ));
         }
 
         // Idempotency check: Does the user already exist?
         let check = Command::new("id").arg("-u").arg(username).output().await;
-        if let Ok(output) = check {
-            if output.status.success() {
-                return Ok(()); 
-            }
+        if let Ok(output) = check
+            && output.status.success()
+        {
+            return Ok(());
         }
 
         // 2. 🛡️ Deterministic Jailing
         // We force the specific UID passed from the Go API using `-u`.
         let output = Command::new("useradd")
             .args([
-                "--system", 
-                "--no-create-home", 
-                "--shell", "/bin/false", 
-                "-u", &uid.to_string(), 
-                username
+                "--system",
+                "--no-create-home",
+                "--shell",
+                "/bin/false",
+                "-u",
+                &uid.to_string(),
+                username,
             ])
             .output()
             .await
@@ -56,7 +65,7 @@ impl JailManager for LinuxJailManager {
 
     async fn deprovision_app_user(&self, username: &str) -> Result<(), String> {
         if !username.starts_with("kari-") {
-             return Err("SECURITY VIOLATION: Refusing to delete non-Kari user".into());
+            return Err("SECURITY VIOLATION: Refusing to delete non-Kari user".into());
         }
 
         // 1. 🛡️ Hygiene: forcefully kill all lingering processes owned by this user
@@ -77,7 +86,10 @@ impl JailManager for LinuxJailManager {
             let stderr = String::from_utf8_lossy(&output.stderr);
             // userdel returns exit code 6 if the user doesn't exist. We treat that as success.
             if output.status.code() != Some(6) {
-                return Err(format!("Failed to deprovision user {}: {}", username, stderr));
+                return Err(format!(
+                    "Failed to deprovision user {}: {}",
+                    username, stderr
+                ));
             }
         }
 
@@ -85,7 +97,10 @@ impl JailManager for LinuxJailManager {
     }
 
     async fn secure_directory(&self, path: &Path, username: &str) -> Result<(), String> {
-        if !username.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        if !username
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
             return Err("SECURITY VIOLATION: Invalid username format".into());
         }
 
@@ -94,7 +109,7 @@ impl JailManager for LinuxJailManager {
             .map_err(|e| format!("Filesystem Error: {}", e))?;
 
         // 🛡️ TOCTOU Mitigation & Recursive Symlink Safe-Chown
-        // Rather than relying on non-atomic Rust fs calls, we delegate to the native 
+        // Rather than relying on non-atomic Rust fs calls, we delegate to the native
         // Linux binaries which are battle-tested against symlink races when using specific flags.
         // `-P` prevents traversing symlinks that are encountered.
         let path_str = path.to_str().ok_or("Path contains invalid UTF-8")?;
@@ -106,7 +121,10 @@ impl JailManager for LinuxJailManager {
             .map_err(|e| format!("Failed to spawn chown: {}", e))?;
 
         if !chown_out.status.success() {
-            return Err(format!("Failed to secure directory ownership: {}", String::from_utf8_lossy(&chown_out.stderr)));
+            return Err(format!(
+                "Failed to secure directory ownership: {}",
+                String::from_utf8_lossy(&chown_out.stderr)
+            ));
         }
 
         // Apply strict 0750 permissions recursively
@@ -117,7 +135,10 @@ impl JailManager for LinuxJailManager {
             .map_err(|e| format!("Failed to spawn chmod: {}", e))?;
 
         if !chmod_out.status.success() {
-            return Err(format!("Failed to secure directory permissions: {}", String::from_utf8_lossy(&chmod_out.stderr)));
+            return Err(format!(
+                "Failed to secure directory permissions: {}",
+                String::from_utf8_lossy(&chmod_out.stderr)
+            ));
         }
 
         Ok(())
