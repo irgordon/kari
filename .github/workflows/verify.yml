@@ -35,40 +35,26 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       # ------------------------------------------------------------
-      # 2. Optional protobuf toolchain (only needed for proto-check)
+      # 2. Protobuf toolchain (REQUIRED for Rust agent + proto-check)
       # ------------------------------------------------------------
 
-      - name: Install protobuf tooling (optional)
+      - name: Install protobuf tooling
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler || true
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6 || true
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1 || true
+          sudo apt-get install -y protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # ------------------------------------------------------------
-      # 3. Proto drift check (only if protoc is available)
+      # 3. Proto drift check
       # ------------------------------------------------------------
 
-      - name: Check for protoc
-        id: protoc_check
-        run: |
-          if command -v protoc >/dev/null 2>&1; then
-            echo "has_protoc=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_protoc=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Verify protobuf outputs
-        if: steps.protoc_check.outputs.has_protoc == 'true'
         run: make proto-check
-
-      - name: Skip proto-check (no protoc installed)
-        if: steps.protoc_check.outputs.has_protoc == 'false'
-        run: echo "Skipping proto-check; protoc not installed."
 
       # ------------------------------------------------------------
       # 4. Unified verification
