@@ -27,10 +27,6 @@ export function DashboardPage() {
   const [stats, setStats] = useState<SystemStats>(defaultStats)
   const [alerts, setAlerts] = useState<SystemAlert[]>([])
 
-  useEffect(() => {
-    void loadDashboard()
-  }, [])
-
   async function loadDashboard() {
     try {
       const [alertsData, statsData] = await Promise.all([
@@ -43,6 +39,13 @@ export function DashboardPage() {
       console.error('Failed to load dashboard data', error)
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadDashboard()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   return (
     <div className="page stack">

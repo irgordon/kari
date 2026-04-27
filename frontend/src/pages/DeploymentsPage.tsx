@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { apiGet, apiPost } from '../lib/api'
 
 type ViewMode = 'list' | 'create' | 'terminal'
@@ -49,31 +50,6 @@ export function DeploymentsPage() {
     ssh_key: '',
   })
 
-  useEffect(() => {
-    if (view === 'list') {
-      void fetchDeployments()
-    }
-  }, [view])
-
-  useEffect(() => {
-    if (view !== 'terminal' || !activeTraceId) {
-      return
-    }
-
-    const stream = new EventSource(`/api/v1/deployments/${activeTraceId}/logs/stream`)
-    stream.onmessage = (event) => {
-      setLogs((current) => `${current}${event.data}\n`)
-    }
-    stream.onerror = (streamError) => {
-      console.error('Deployment log stream error', streamError)
-      stream.close()
-    }
-
-    return () => {
-      stream.close()
-    }
-  }, [activeTraceId, view])
-
   async function fetchDeployments() {
     setLoading(true)
     setError(null)
@@ -104,6 +80,35 @@ export function DeploymentsPage() {
       setError('Deployment failed to initialize.')
     }
   }
+
+  useEffect(() => {
+    if (view === 'list') {
+      const timer = window.setTimeout(() => {
+        void fetchDeployments()
+      }, 0)
+      return () => window.clearTimeout(timer)
+    }
+    return undefined
+  }, [view])
+
+  useEffect(() => {
+    if (view !== 'terminal' || !activeTraceId) {
+      return
+    }
+
+    const stream = new EventSource(`/api/v1/deployments/${activeTraceId}/logs/stream`)
+    stream.onmessage = (event) => {
+      setLogs((current) => `${current}${event.data}\n`)
+    }
+    stream.onerror = (streamError) => {
+      console.error('Deployment log stream error', streamError)
+      stream.close()
+    }
+
+    return () => {
+      stream.close()
+    }
+  }, [activeTraceId, view])
 
   return (
     <div className="page stack">
