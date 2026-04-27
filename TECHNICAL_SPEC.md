@@ -8,7 +8,7 @@
 
 Karı relies on a strict privilege-separation model, splitting operations between an unprivileged API daemon and a root-level system agent.
 
-* **The UI (Decoupled SPA):** Built with SvelteKit. Communicates exclusively via the public REST API. Uses server-side hooks to manage HttpOnly cookies.
+* **The UI (Decoupled SPA):** Built with React. Communicates exclusively via the public REST API. Uses client-side hooks to manage HttpOnly cookies.
 * **The Brain (Go API Daemon):** Runs as an unprivileged user (`kari-api`, usually UID 1001). Handles HTTP REST routing, state management, dynamic RBAC, automated SSL generation, rate limiting, background cron workers, and workflow orchestration.
 * **The Muscle (Rust System Agent):** Runs as `root`. Communicates via restricted gRPC over a local Unix socket.
 * **The Lockout Handoff:** The socket file is created by root but instantly `chown`'d to the Go API user.
