@@ -27,24 +27,27 @@ export function DashboardPage() {
   const [stats, setStats] = useState<SystemStats>(defaultStats)
   const [alerts, setAlerts] = useState<SystemAlert[]>([])
 
-  async function loadDashboard() {
-    try {
-      const [alertsData, statsData] = await Promise.all([
-        apiGet<SystemAlert[]>('/api/v1/audit/alerts?status=unresolved'),
-        apiGet<SystemStats>('/api/v1/system/stats'),
-      ])
-      setAlerts(alertsData)
-      setStats(statsData)
-    } catch (error) {
-      console.error('Failed to load dashboard data', error)
-    }
-  }
-
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadDashboard()
-    }, 0)
-    return () => window.clearTimeout(timer)
+    let cancelled = false
+
+    void Promise.all([
+      apiGet<SystemAlert[]>('/api/v1/audit/alerts?status=unresolved'),
+      apiGet<SystemStats>('/api/v1/system/stats'),
+    ])
+      .then(([alertsData, statsData]) => {
+        if (cancelled) {
+          return
+        }
+        setAlerts(alertsData)
+        setStats(statsData)
+      })
+      .catch((error) => {
+        console.error('Failed to load dashboard data', error)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return (

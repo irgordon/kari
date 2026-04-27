@@ -34,6 +34,10 @@ export function SettingsPage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!profile || profile.version === undefined) {
+      setError('System profile is not loaded yet. Please refresh and try again.')
+      return
+    }
     setIsSubmitting(true)
     setError(null)
     setSuccess(false)
@@ -42,7 +46,7 @@ export function SettingsPage() {
       const payload = {
         max_memory_per_app_mb: Number(maxMemory),
         max_cpu_percent_per_app: Number(maxCpu),
-        version: Number(profile?.version ?? 0),
+        version: Number(profile.version),
       }
       await apiPost<typeof payload, SystemProfile>('/api/v1/system/profile', payload, {
         method: 'PUT',
@@ -99,7 +103,10 @@ export function SettingsPage() {
         </div>
 
         <div className="form-actions">
-          <button type="submit" disabled={isSubmitting}>
+          <button
+            type="submit"
+            disabled={isSubmitting || !profile || profile.version === undefined}
+          >
             {isSubmitting ? 'Saving...' : 'Save Configuration'}
           </button>
         </div>

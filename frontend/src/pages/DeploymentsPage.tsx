@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { apiGet, apiPost } from '../lib/api'
 
@@ -19,7 +19,7 @@ interface CreateDeploymentPayload {
   branch: string
   build_command: string
   target_port: number
-  ssh_key: string
+  ssh_key?: string
 }
 
 interface CreateDeploymentResponse {
@@ -34,6 +34,7 @@ const statusLabels: Record<DeploymentStatus, string> = {
 }
 
 export function DeploymentsPage() {
+  const sshKeyRef = useRef<HTMLTextAreaElement | null>(null)
   const [view, setView] = useState<ViewMode>('list')
   const [activeTraceId, setActiveTraceId] = useState<string | null>(null)
   const [deployments, setDeployments] = useState<Deployment[]>([])
@@ -47,30 +48,23 @@ export function DeploymentsPage() {
     branch: 'main',
     build_command: 'npm install && npm run build',
     target_port: 3000,
-    ssh_key: '',
   })
-
-  async function fetchDeployments() {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await apiGet<Deployment[]>('/api/v1/deployments')
-      setDeployments(data)
-    } catch (fetchError) {
-      console.error('Failed to fetch deployments', fetchError)
-      setError('Failed to load deployments.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function onCreateDeployment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
     try {
+      const sshKey = sshKeyRef.current?.value.trim() ?? ''
+      if (sshKeyRef.current) {
+        sshKeyRef.current.value = ''
+      }
+      const payload: CreateDeploymentPayload = { ...formData }
+      if (sshKey) {
+        payload.ssh_key = sshKey
+      }
       const result = await apiPost<CreateDeploymentPayload, CreateDeploymentResponse>(
         '/api/v1/apps/deploy',
-        formData,
+        payload,
       )
       setActiveTraceId(result.trace_id)
       setLogs('')
@@ -82,13 +76,33 @@ export function DeploymentsPage() {
   }
 
   useEffect(() => {
-    if (view === 'list') {
-      const timer = window.setTimeout(() => {
-        void fetchDeployments()
-      }, 0)
-      return () => window.clearTimeout(timer)
+    if (view !== 'list') {
+      return undefined
     }
-    return undefined
+
+    let cancelled = false
+
+    void apiGet<Deployment[]>('/api/v1/deployments')
+      .then((data) => {
+        if (!cancelled) {
+          setDeployments(data)
+        }
+      })
+      .catch((fetchError) => {
+        console.error('Failed to fetch deployments', fetchError)
+        if (!cancelled) {
+          setError('Failed to load deployments.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [view])
 
   useEffect(() => {
@@ -118,7 +132,15 @@ export function DeploymentsPage() {
           <p>Orchestration Engine</p>
         </div>
         <div className="inline-actions">
-          <button type="button" onClick={() => setView('list')}>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true)
+              setError(null)
+              setLogs('')
+              setView('list')
+            }}
+          >
             List
           </button>
           <button type="button" onClick={() => setView('create')}>
@@ -150,7 +172,7 @@ export function DeploymentsPage() {
                 {deployments.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="muted center">
-                      The Kari Muscle is idle. No deployments recorded.
+                      The Karı Muscle is idle. No deployments recorded.
                     </td>
                   </tr>
                 ) : (
@@ -189,7 +211,7 @@ export function DeploymentsPage() {
       {view === 'create' ? (
         <form className="card stack" onSubmit={onCreateDeployment}>
           <h2>Create New Application</h2>
-          <p>Provision a new jail and proxy on the Kari Muscle.</p>
+          <p>Provision a new jail and proxy on the Karı Muscle.</p>
 
           <div className="form-grid">
             <label className="field">
@@ -260,14 +282,8 @@ export function DeploymentsPage() {
           <label className="field">
             <span>Private Deployment Key (SSH)</span>
             <textarea
+              ref={sshKeyRef}
               rows={4}
-              value={formData.ssh_key}
-              onChange={(event) =>
-                setFormData((current) => ({
-                  ...current,
-                  ssh_key: event.target.value,
-                }))
-              }
             />
           </label>
 
@@ -281,7 +297,15 @@ export function DeploymentsPage() {
         <section className="card stack">
           <div className="section-header">
             <h2>Live Build Console</h2>
-            <button type="button" onClick={() => setView('list')}>
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true)
+                setError(null)
+                setLogs('')
+                setView('list')
+              }}
+            >
               Close Console &amp; Return
             </button>
           </div>
