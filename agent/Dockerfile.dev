@@ -1,7 +1,7 @@
 # Stage 1: Cargo Chef - The Dependency Caching Engine
-FROM rust:1.80-slim-bookworm AS chef
+FROM rust:1.85-slim-bookworm AS chef
 RUN cargo install cargo-chef
-WORKDIR /app
+WORKDIR /app/agent
 
 # Install system-level build dependencies for gRPC and ProtoBuf
 # Added clang and cmake for robust crate compilation
@@ -17,21 +17,21 @@ RUN apt-get update && apt-get install -y \
 # Stage 2: Planner - Prepare the recipe
 FROM chef AS planner
 # Only copy what is needed to determine dependencies to maximize cache hits
-COPY agent/ agent/
-COPY proto/ proto/
-COPY Cargo.toml Cargo.lock ./
+COPY agent/Cargo.toml agent/Cargo.lock ./
+COPY agent/ ./
+COPY proto/ ../proto/
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage 3: Builder - The Muscle Factory
 FROM chef AS builder
-COPY --from=planner /app/recipe.json recipe.json
+COPY --from=planner /app/agent/recipe.json recipe.json
 # Build dependencies - cached unless Cargo.toml/lock changes
 RUN cargo chef cook --release --recipe-path recipe.json
 
 # Now copy source and build the agent
-COPY agent/ agent/
-COPY proto/ proto/
-COPY Cargo.toml Cargo.lock ./
+COPY agent/Cargo.toml agent/Cargo.lock ./
+COPY agent/ ./
+COPY proto/ ../proto/
 
 # 🛡️ Build the Muscle in Release mode for SLA performance
 # We use --bin to ensure we only build the agent binary
@@ -50,7 +50,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy the compiled binary from the builder
 # 🛡️ Use the release target path
-COPY --from=builder /app/target/release/kari-agent /usr/local/bin/kari-agent
+COPY --from=builder /app/agent/target/release/kari-agent /usr/local/bin/kari-agent
 
 # 🛡️ Strip the binary to remove debug symbols (reduces size by ~50-70%)
 RUN apt-get update && apt-get install -y binutils && \
