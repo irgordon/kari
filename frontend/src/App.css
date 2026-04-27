@@ -315,3 +315,187 @@ code {
   margin-top: 0.4rem;
   color: #6b7280;
 }
+
+/* Roles page layout */
+.roles-layout {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .roles-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.role-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  color: inherit;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.role-item:hover {
+  background: #f9fafb;
+}
+
+.role-item.selected {
+  border-left-color: #1ba8a0;
+  background: #f0fdf9;
+}
+
+.role-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.role-item-name {
+  font-weight: 600;
+}
+
+.badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.25rem;
+  background: #e5e7eb;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.small {
+  font-size: 0.78rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.perm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.perm-row:last-child {
+  border-bottom: none;
+}
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 1.4rem;
+  width: 2.6rem;
+  border: none;
+  border-radius: 9999px;
+  background: #d1d5db;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.toggle.on {
+  background: #1ba8a0;
+}
+
+.toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toggle-thumb {
+  pointer-events: none;
+  display: inline-block;
+  height: 1.1rem;
+  width: 1.1rem;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  margin: 0.15rem;
+  transform: translateX(0);
+  transition: transform 0.2s;
+}
+
+.toggle.on .toggle-thumb {
+  transform: translateX(1.2rem);
+}
+
+/* Inline field (checkbox label) */
+.field.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Log stream lines */
+.log-line {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.log-ts {
+  color: rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+.log-level {
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.2rem;
+}
+
+.log-error .log-level {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.log-warn .log-level {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.log-debug .log-level {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.log-info .log-level {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.log-service {
+  color: #818cf8;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.log-msg {
+  color: rgba(255, 255, 255, 0.9);
+  word-break: break-all;
+}

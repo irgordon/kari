@@ -46,3 +46,29 @@ export function apiPost<TRequest, TResponse>(
     ...init,
   })
 }
+
+export function apiPut<TRequest, TResponse>(
+  path: ApiPath,
+  body: TRequest,
+  init: RequestInit = {},
+): Promise<TResponse> {
+  return request<TResponse>(path, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers ?? {}),
+    },
+    body: JSON.stringify(body),
+    ...init,
+  })
+}
+
+export function apiDelete<TResponse = void>(
+  path: ApiPath,
+  init: RequestInit = {},
+): Promise<TResponse> {
+  return request<TResponse>(path, {
+    method: 'DELETE',
+    ...init,
+  })
+}
