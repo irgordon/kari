@@ -55,7 +55,7 @@ export function AuditPage() {
       setAlerts((prev) => prev.filter((a) => a.id !== id))
     } catch (e: unknown) {
       console.error('Failed to resolve alert', e)
-      alert('Failed to dismiss alert. Please try again.')
+      setError(e instanceof Error ? e.message : 'Failed to dismiss alert. Please try again.')
     } finally {
       setResolvingIds((prev) => {
         const next = new Set(prev)
@@ -105,7 +105,7 @@ export function AuditPage() {
             <div key={alert.id} className={`card alert-item ${alert.severity}`}>
               <div className="alert-meta">
                 <span>{severityLabel[alert.severity] ?? alert.severity}</span>
-                <span className="muted small">{alert.category.toUpperCase().replace('_', ' ')}</span>
+                <span className="muted small">{alert.category.toUpperCase().replace(/_/g, ' ')}</span>
                 <span className="muted small">{new Date(alert.created_at).toLocaleString()}</span>
               </div>
               <p>{alert.message}</p>

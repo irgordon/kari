@@ -10,7 +10,7 @@ interface Domain {
   created_at: string
 }
 
-const isValidDomain = (d: string) => /^[a-z0-9]+([-.]{1}[a-z0-9]+)*\.[a-z]{2,5}$/.test(d)
+const isValidDomain = (d: string) => /^[a-z0-9]+([-.]{1}[a-z0-9]+)*\.[a-z]{2,5}$/i.test(d)
 
 export function DomainsPage() {
   const [domains, setDomains] = useState<Domain[]>([])

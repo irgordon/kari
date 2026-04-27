@@ -163,7 +163,7 @@ export function SystemPage() {
           ) : (
             filteredLogs.map((log) => (
               <div key={log.id} className={`log-line ${levelClass(log.level)}`}>
-                <span className="log-ts">[{new Date(log.ts).toLocaleTimeString()}]</span>
+                <span className="log-ts">[{(() => { const d = new Date(log.ts); return isNaN(d.getTime()) ? log.ts : d.toLocaleTimeString() })()}]</span>
                 <span className={`log-level ${levelClass(log.level)}`}>{log.level}</span>
                 <span className="log-service">{log.service}:</span>
                 <span className="log-msg">{log.msg}</span>

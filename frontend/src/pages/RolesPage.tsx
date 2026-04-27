@@ -154,7 +154,7 @@ export function RolesPage() {
                 {Object.entries(permissionMatrix).map(([resource, perms]) => (
                   <div key={resource} className="card">
                     <div className="section-header">
-                      <h3 className="capitalize">{resource.replace('_', ' ')}</h3>
+                      <h3 className="capitalize">{resource.replace(/_/g, ' ')}</h3>
                     </div>
                     <ul className="list">
                       {perms.map((perm) => (
