@@ -6,7 +6,7 @@ Welcome to the engine room. This guide provides the technical blueprint for runn
 
 The stack consists of four primary boundaries:
 
-1. **The Interface (SvelteKit)**: Port `5173` - Vite-powered dev server.
+1. **The Interface (React)**: Port `5173` - Vite-powered dev server.
 2. **The Brain (Go API)**: Port `8080` - Orchestrator and gRPC client.
 3. **The Muscle (Rust Agent)**: Unix Socket - System manager and gRPC server.
 4. **The Vault (Postgres)**: Port `5432` - Persistence layer.
@@ -21,14 +21,14 @@ This Mermaid diagram illustrates the **Zero-Trust** path for a deployment reques
 sequenceDiagram
     autonumber
     participant Admin as 💻 Admin Browser
-    participant Svelte as ⚡ SvelteKit (UI)
+    participant Svelte as ⚡ React (UI)
     participant Brain as 🧠 Go API (Brain)
     participant DB as 🗄️ Postgres (Vault)
     participant Muscle as ⚙️ Rust Agent (Muscle)
     participant OS as 🐧 Linux Kernel (Jails)
 
     Note over Admin, Svelte: TLS 1.3 / JWT Auth
-    Admin->>Svelte: Initiates Deployment (DeployButton.svelte)
+    Admin->>Svelte: Initiates Deployment (DeployButton)
     Svelte->>Svelte: Validate Input (Zod/Regex)
     
     Note over Svelte, Brain: Internal Backplane (HTTP/JSON)
@@ -57,11 +57,11 @@ sequenceDiagram
 
 ### 🏗️ Workflow Breakdown
 
-1. **Frontend Entry**: The Admin initiates an action. SvelteKit handles the initial UX and ensures the operator has a valid, non-expired **JWT**.
+1. **Frontend Entry**: The Admin initiates an action. The React UI handles the initial UX and ensures the operator has a valid, non-expired **JWT**.
 2. **The Brain's Logic**: The Go API acts as the "Secure Custodian." It pulls the encrypted SSH keys from the Vault, decrypts them in memory using the **Master Key**, and prepares the payload for the Agent.
 3. **The gRPC Handshake**: Communication happens over a **Unix Domain Socket** (`/var/run/kari/agent.sock`). The Muscle (Rust) performs a **Peer Credential** check to ensure the caller is indeed the Brain (UID 1001) before executing any privileged system commands.
 4. **Hardware Enforcement**: The Muscle talks to the Linux kernel to set up `cgroups` (resource limits) and `namespaces` (filesystem isolation).
-5. **Telemetry Loop**: Once the process is running, the Muscle streams logs back to the Brain, which proxies them via **SSE** directly to the `DeploymentTerminal.svelte` component.
+5. **Telemetry Loop**: Once the process is running, the Muscle streams logs back to the Brain, which proxies them via **SSE** directly to the `DeploymentTerminal` component.
 
 
 ---

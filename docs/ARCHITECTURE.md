@@ -6,14 +6,14 @@ Karı is a platform-agnostic orchestration engine designed for high-stakes 2026 
 
 ## 🛠️ The Three Pillars
 
-### 1. The Window (SvelteKit Frontend)
+### 1. The Window (React Frontend)
 
-The "Window" is a hardened SvelteKit 5 application acting as the administrative interface.
+The "Window" is a hardened React application acting as the administrative interface.
 
-* **Tech:** SvelteKit, Vite, Tailwind CSS, Lucide, xterm.js.
-* **Edge Security:** Implements **JWT Edge Verification** via `hooks.server.ts` using the `jose` library. It strictly enforces `HttpOnly`, `SameSite=Strict` cookies.
+* **Tech:** React, Vite, Tailwind CSS, Lucide, xterm.js.
+* **Security:** Implements **JWT verification** in client-side hooks using the `jose` library. It strictly enforces `HttpOnly`, `SameSite=Strict` cookies.
 * **Telemetry:** Utilizes **Server-Sent Events (SSE)** for real-time log streaming, providing a unidirectional, proxy-friendly pipe for build logs.
-* **Deployment:** Containerized via **Node-Adapter** on a non-root Alpine base.
+* **Deployment:** Containerized via a multi-stage Vite build on a non-root Alpine base.
 
 ### 2. The Brain (Go API Gateway)
 

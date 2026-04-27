@@ -13,7 +13,7 @@
   <p>
     <img src="https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white" alt="Go" />
     <img src="https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
-    <img src="https://img.shields.io/badge/svelte-%23f1413d.svg?style=for-the-badge&logo=svelte&logoColor=white" alt="Svelte" />
+    <img src="https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React" />
     <img src="https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
     <img src="https://img.shields.io/badge/nginx-%23009639.svg?style=for-the-badge&logo=nginx&logoColor=white" alt="Nginx" />
     <img src="https://img.shields.io/badge/gRPC-%23244c5a.svg?style=for-the-badge&logo=grpc&logoColor=white" alt="gRPC" />
@@ -35,7 +35,7 @@ Built with an unprivileged **Go** REST API and a memory-safe, root-level **Rust*
 - **Cryptographic Memory Guards & AAD:** Secrets are encrypted in Postgres using AES-256-GCM with Associated Authenticated Data (AAD) bound to the AppID. In the Rust agent, sensitive keys are purged from RAM instantly via `Zeroize`.
 - **Dynamic RBAC & Action Center:** Cryptographically signed, stateless JWTs enforce rank-based permissions at the edge. The Go router enforces Defense-in-Depth, intrinsically rejecting mutating methods lacking proper payload scopes.
 - **Real-Time Observability (SLA Compliant):** End-to-end SSE streams deployment build logs directly from the Linux host to an XSS-proof `xterm.js` terminal UI. Strict backpressure and context propagation (`kill_on_drop`) guarantee the orchestrator never blocks.
-- **Premium Glass-Bento UI:** A progressively enhanced, frictionless SvelteKit dashboard using translucency, "Accent Glows", and bento-grid metric visualizations for an elite operational experience.
+- **Premium Glass-Bento UI:** A progressively enhanced, frictionless React dashboard using translucency, "Accent Glows", and bento-grid metric visualizations for an elite operational experience.
 
 ---
 
@@ -53,7 +53,7 @@ Built with an unprivileged **Go** REST API and a memory-safe, root-level **Rust*
 
 Karı operates on a strict **Zero-Trust** model, physically and logically separating the user interface, the business logic, and the system-level execution. It is built on three highly optimized pillars:
 
-1. **The Window (SvelteKit & Node.js):** A progressively enhanced, SSR-driven frontend utilizing our modern **Glass-Bento** design system. It handles stateful UI hydration and granular Role-Based Access Control (RBAC) via cryptographically verified local JWTs.
+1. **The Window (React & Node.js):** A progressively enhanced, client-side frontend utilizing our modern **Glass-Bento** design system. It handles stateful UI rendering and granular Role-Based Access Control (RBAC) via cryptographically verified local JWTs.
 2. **The Brain (Go & PostgreSQL):** The stateless API gateway. It handles authentication, AAD-backed database persistence, Let's Encrypt orchestration, and strict SLA enforcement (backpressure, DB pooling). It never touches the host OS directly.
 3. **The Muscle (Rust):** The execution engine. Running as a privileged daemon, it receives gRPC commands from the Brain over a secure, isolated Unix Domain Socket (UDS) with strict PeerCred verification. It aggressively zeroizes memory after handling keys.
 
@@ -68,7 +68,7 @@ graph TD
 
     %% Nodes
     subgraph "The Window (Edge Gatekeeper)"
-        UI["💻 SvelteKit Node Server (Glass-Bento UI)<br/>SSR Hydration, JWT Cryptographic Verification, RBAC UI"]:::frontend
+        UI["💻 React UI (Glass-Bento UI)<br/>JWT Cryptographic Verification, RBAC UI"]:::frontend
     end
 
     subgraph "The Brain (Unprivileged Orchestrator)"
@@ -132,18 +132,18 @@ kari/
 │ ├── handlers/ # HTTP Handlers (REST endpoints, Setup Wizard)
 │ │ └── setup_handler.go # Transient tokens and BIP-39 recovery phrases
 │ └── grpc/ # Generated Go gRPC client code
-├── frontend/ # The Window (SvelteKit UI - Glass-Bento Aesthetic)
+├── frontend/ # The Window (React UI - Glass-Bento Aesthetic)
 │ ├── Dockerfile # Multi-stage build
 │ ├── package.json
-│ ├── svelte.config.js
-│ ├── tailwind.config.js # Configures Glass-Bento styles and Accent Glows
+│ ├── vite.config.ts
+│ ├── tailwind.config.ts # Configures Glass-Bento styles and Accent Glows
 │ └── src/
-│ ├── hooks.server.ts # Edge gatekeeper: Stateless JWT cryptographic verification
-│ ├── lib/components/ # UI abstractions (Dashboard Grid, Recessed Deep Slate Terminals)
-│ └── routes/
-│ ├── +layout.server.ts # Serializes sanitized user state down to Svelte stores
-│ ├── (app)/ # Authenticated routes (Dashboard, Apps, Logs)
-│ └── login/ # Progressive enhancement forms with auth state retention
+│ ├── main.tsx # App entrypoint (React root mount)
+│ ├── components/ # UI abstractions (Dashboard Grid, Terminals)
+│ └── pages/
+│ ├── Dashboard.tsx # Dashboard metrics and bento-grid layout
+│ ├── Apps.tsx # Application management views
+│ └── Login.tsx # Auth forms with JWT state retention
 ├── proto/ # The Contract (Language-Agnostic Schema)
 │ └── kari/v1/agent.proto # Protocol Buffer definitions for UDS communication
 ├── dev.sh # Developer DX: Host-level routing, mock paths, Vite HMR
@@ -171,7 +171,7 @@ Karı doesn't care where it runs. It is designed to abstract away the underlying
 - **ARM Clusters** (AWS Graviton, Raspberry Pi)
 - **Containerized Environments** (Docker Compose swarms)
 
-By implementing the Single Layer Abstraction (SLA) principle, adding a new reverse proxy (e.g., swapping Nginx for Caddy) or a new DNS provider requires zero changes to the Go Brain or the SvelteKit UI. You simply drop a new provider interface into the Rust Muscle.
+By implementing the Single Layer Abstraction (SLA) principle, adding a new reverse proxy (e.g., swapping Nginx for Caddy) or a new DNS provider requires zero changes to the Go Brain or the React UI. You simply drop a new provider interface into the Rust Muscle.
 
 ---
 
@@ -236,7 +236,7 @@ make verify
 4. **Choose your Execution Model:**
 
 **Option A: Fast Iteration (Native Host)**
-Spins up PostgreSQL via Docker, but runs the Go Brain, Rust Muscle, and SvelteKit UI natively on your machine with mocked filesystem paths (no `sudo` required). Perfect for UI work and instant Hot Module Replacement (HMR).
+Spins up PostgreSQL via Docker, but runs the Go Brain, Rust Muscle, and React UI natively on your machine with mocked filesystem paths (no `sudo` required). Perfect for UI work and instant Hot Module Replacement (HMR).
 
 ```bash
 ./dev.sh
@@ -268,7 +268,7 @@ If you discover a security vulnerability, please do **NOT** open a public issue.
 
 ## 🛠️ Local Development
 
-Building Karı locally is designed to be frictionless. Our local bootstrapper spins up the database in Docker, mocks the Linux filesystem so the Rust agent can run without `sudo`, and hot-reloads the SvelteKit UI.
+Building Karı locally is designed to be frictionless. Our local bootstrapper spins up the database in Docker, mocks the Linux filesystem so the Rust agent can run without `sudo`, and hot-reloads the React UI.
 
 ```bash
 ./dev.sh

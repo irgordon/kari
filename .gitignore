@@ -42,15 +42,14 @@ cobertura.xml
 # so we deliberately do not ignore it here.
 
 # ==============================================================================
-# 💻 Kari Web: SvelteKit & Node.js (.gitignore)
+# 💻 Kari Web: React & Node.js (.gitignore)
 # ==============================================================================
 # Dependencies
 /frontend/node_modules/
 /frontend/.pnp
 /frontend/.pnp.js
 
-# SvelteKit/Vite Build Outputs
-/frontend/.svelte-kit/
+# Vite Build Outputs
 /frontend/build/
 /frontend/dist/
 /frontend/package/
