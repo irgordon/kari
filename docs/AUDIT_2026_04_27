@@ -1,0 +1,545 @@
+# Kari Concurrency & Correctness Audit Report — Phase A1 - 2026-04-27
+
+## 1. Introduction & Scope
+
+This report covers all concurrency-relevant code paths in the Kari codebase across:
+
+- Go API (`api/`) — goroutines, sync primitives, HTTP handlers, background workers  
+- Rust Agent (`agent/`) — tokio async executor, Arc/Mutex, gRPC streaming, system-level operations  
+- TypeScript / React Frontend (`frontend/`) — event loop, SSE, async state management  
+- Cross-boundary interactions — Go ↔ Rust over Unix Domain Socket gRPC, Hub ↔ SSE, JWT / Opaque token lifecycle  
+
+---
+
+## 2. Concurrency Model Overview
+
+| Layer              | Model                    | Primitives Used |
+|--------------------|--------------------------|----------------|
+| Go API             | goroutines + channels    | sync.RWMutex, sync.Map, sync/atomic, context |
+| Rust Agent         | tokio async/await        | Arc\<Mutex\<T\>\>, mpsc channels, Arc\<dyn Trait\> |
+| React Frontend     | event loop + useEffect   | EventSource, useState, cancellation closures |
+| PostgreSQL         | row-level locking        | FOR UPDATE SKIP LOCKED, OCC via version column |
+| Filesystem         | sequential syscalls      | tokio::fs, Command, atomic-like writes |
+
+---
+
+## 3. Findings by Category
+
+---
+
+## 3.1 Race Conditions
+
+### RC-1 [HIGH] — Unsynchronized read/write on `visitor.lastSeen`
+
+File:
+
+```
+
+api/internal/api/middleware/auth.go
+
+```
+
+Problem:
+
+Concurrent goroutines access a shared visitor struct without synchronization.
+
+```
+
+vis.lastSeen = time.Now()
+
+```
+
+Background cleanup goroutine reads the same field without locking.
+
+Risk:
+
+- Data race detectable by Go race detector  
+- Potential torn read on multi-word `time.Time`  
+- Incorrect rate-limiter cleanup behavior  
+
+Fix:
+
+Add:
+
+```
+
+sync.RWMutex
+
+```
+
+or:
+
+```
+
+atomic.Pointer[time.Time]
+
+```
+
+---
+
+### RC-2 [LOW] — Blocking Mutex inside async handler
+
+File:
+
+```
+
+agent/src/server.rs
+
+```
+
+Problem:
+
+```
+
+std::sync::Mutex
+
+```
+
+used inside tokio async handler.
+
+Risk:
+
+- Thread starvation under load  
+- Reduced async scheduler responsiveness  
+
+Fix:
+
+Use:
+
+```
+
+tokio::sync::Mutex
+
+```
+
+or:
+
+```
+
+spawn_blocking()
+
+```
+
+---
+
+## 3.2 Deadlocks
+
+No hard deadlock cycles identified.
+
+Lock acquisition order is consistent.
+
+Residual risk:
+
+Thread pool saturation if blocking mutex calls accumulate.
+
+---
+
+## 3.3 Data Inconsistencies / Corruption
+
+---
+
+### DI-1 [CRITICAL] — Incompatible refresh token schemes
+
+Files:
+
+```
+
+auth_service.go
+token_service.go
+
+```
+
+System behavior:
+
+- Token generator creates opaque tokens
+- Token verifier expects JWT
+
+Result:
+
+Refresh endpoint always fails.
+
+Impact:
+
+Session renewal permanently broken.
+
+Fix:
+
+Choose one scheme:
+
+Preferred:
+
+Opaque token lookup using SHA-256 hash.
+
+---
+
+### DI-2 [MEDIUM] — Ephemeral AppID breaks SSH key binding
+
+File:
+
+```
+
+deployment_handler.go
+
+```
+
+Problem:
+
+New UUID generated per deployment request.
+
+Result:
+
+Previously stored encrypted SSH keys become unrecoverable.
+
+Fix:
+
+Use persisted application ID as encryption associated data.
+
+---
+
+### DI-3 [LOW] — Status update occurs after broadcast
+
+File:
+
+```
+
+deployment_worker.go
+
+```
+
+Current order:
+
+```
+
+Broadcast
+UpdateStatus
+
+```
+
+Correct order:
+
+```
+
+UpdateStatus
+Broadcast
+
+```
+
+---
+
+## 3.4 Livelocks
+
+None identified.
+
+All retry loops bounded by context timeouts.
+
+---
+
+## 3.5 Starvation
+
+---
+
+### ST-1 [LOW] — Cleanup goroutine lacks shutdown hook
+
+File:
+
+```
+
+auth.go
+
+```
+
+Problem:
+
+Background goroutine runs indefinitely.
+
+Risk:
+
+Graceful shutdown inconsistency.
+
+Fix:
+
+Bind cleanup routine to application context.
+
+---
+
+### ST-2 [INFO] — Redundant lock acquisition
+
+File:
+
+```
+
+health_prober.go
+
+```
+
+Problem:
+
+Multiple lock operations in hot path.
+
+Impact:
+
+Minor performance inefficiency.
+
+---
+
+## 3.6 Order Violations
+
+---
+
+### OV-1 [MEDIUM] — Non-deterministic trace ID generation
+
+File:
+
+```
+
+application_service.go
+
+```
+
+Problem:
+
+Trace ID depends on optional context value.
+
+Risk:
+
+Log collisions under concurrent deployments.
+
+Fix:
+
+Use:
+
+```
+
+uuid.New().String()
+
+```
+
+---
+
+### OV-2 [LOW] — Cancel registered before stream creation
+
+File:
+
+```
+
+deployment_worker.go
+
+```
+
+Risk:
+
+Premature deployment failure.
+
+Fix:
+
+Register cancel handler after stream establishment.
+
+---
+
+## 4. Cross-Boundary Correctness
+
+---
+
+### CB-1 [MEDIUM] — Dual SSE implementations
+
+Files:
+
+```
+
+sse_handler.go
+deployment_handler.go
+
+```
+
+Risk:
+
+Duplicate gRPC streams per client.
+
+Possible divergence between UI and database logs.
+
+Fix:
+
+Maintain a single canonical SSE path.
+
+---
+
+### CB-2 [LOW] — Non-preemptive disconnect detection
+
+File:
+
+```
+
+sse_handler.go
+
+```
+
+Risk:
+
+Delayed disconnect handling.
+
+---
+
+### CB-3 [LOW] — Insecure gRPC credentials
+
+File:
+
+```
+
+kari-api/main.go
+
+```
+
+Risk:
+
+Plaintext gRPC messages over Unix socket.
+
+Fix:
+
+Use:
+
+```
+
+credentials/local
+
+```
+
+Defense-in-depth improvement.
+
+---
+
+### CB-5 [MEDIUM] — Unsanitized systemd command input
+
+File:
+
+```
+
+systemd.rs
+
+```
+
+Risk:
+
+Directive injection via newline or equals sign.
+
+Fix:
+
+Sanitize command string before templating.
+
+---
+
+## 5. Filesystem / Systemd Concurrency
+
+---
+
+### FS-1 [LOW] — TOCTOU permission window
+
+File:
+
+```
+
+jail.rs
+
+```
+
+Sequence:
+
+```
+
+chown
+chmod
+
+```
+
+Risk:
+
+Temporary permission exposure.
+
+Mitigation:
+
+Document risk or use file descriptor–based operations.
+
+---
+
+## 6. Risk Assessment Summary
+
+| ID | Area | Severity | Impact |
+|----|------|---------|-------|
+| DI-1 | Refresh token incompatibility | CRITICAL | Session renewal broken |
+| RC-1 | Rate limiter race | HIGH | Data corruption risk |
+| CB-1 | Dual SSE implementations | MEDIUM | Log divergence |
+| DI-2 | AppID mismatch | MEDIUM | SSH key unrecoverable |
+| CB-5 | systemd injection risk | MEDIUM | Sandbox bypass |
+| OV-1 | Trace ID collision | MEDIUM | Logging conflicts |
+| DI-3 | Status ordering | LOW | Temporary state mismatch |
+| RC-2 | Blocking mutex | LOW | Thread starvation risk |
+| ST-1 | Cleanup goroutine | LOW | Shutdown inconsistency |
+| FS-1 | Permission window | LOW | Short-lived exposure |
+
+---
+
+## 7. Immediate Fix Priorities
+
+Required before release:
+
+- Fix refresh token flow
+- Synchronize rate limiter state
+- Enforce single SSE handler
+- Sanitize systemd command input
+
+Short-term:
+
+- Bind SSH key encryption to persistent application ID
+- Replace trace ID generation logic
+- Correct status update ordering
+- Bind cleanup goroutine to shutdown context
+
+Long-term hardening:
+
+- Replace blocking mutex in async handler
+- Upgrade gRPC credential handling
+
+---
+
+## 8. Testing & Verification Plan
+
+### Race Detection
+
+```
+
+go test -race ./...
+
+```
+
+---
+
+### Integration Tests
+
+- Refresh token lifecycle
+- Deployment success and failure
+- Trace ID uniqueness
+- SSE log consistency
+
+---
+
+### Stress Tests
+
+- Hub broadcast / unsubscribe concurrency
+- System monitor under load
+
+---
+
+### Chaos Tests
+
+- Socket interruption during deployment
+- Agent crash recovery
+
+---
+
+### Contract Tests
+
+- Protobuf compatibility validation
+- API schema enforcement
+
+---
+
+## End of Document
