@@ -41,7 +41,7 @@ func (r *UserRepo) HasPermission(ctx context.Context, userID uuid.UUID, resource
 // GetByID fetches user + role metadata.
 func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	query := `
-		SELECT u.id, u.email, u.password_hash, u.is_active, u.created_at, u.updated_at,
+		SELECT u.id, u.username, u.email, u.password_hash, u.is_active, u.created_at, u.updated_at,
 		       r.id, r.name, r.rank
 		FROM users u
 		JOIN roles r ON u.role_id = r.id
@@ -51,7 +51,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 	var role domain.Role
 
 	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 		&role.ID, &role.Name, &role.Rank,
 	)
 
@@ -62,12 +62,14 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 		return nil, err
 	}
 	user.Role = role
+	user.RoleID = role.ID
+	user.Rank = fmt.Sprintf("%d", role.Rank)
 	return &user, nil
 }
 
 func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	query := `
-		SELECT u.id, u.email, u.password_hash, u.is_active, u.created_at, u.updated_at,
+		SELECT u.id, u.username, u.email, u.password_hash, u.is_active, u.created_at, u.updated_at,
 		       r.id, r.name, r.rank
 		FROM users u
 		JOIN roles r ON u.role_id = r.id
@@ -77,7 +79,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, 
 	var role domain.Role
 
 	err := r.pool.QueryRow(ctx, query, email).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 		&role.ID, &role.Name, &role.Rank,
 	)
 	if err != nil {
@@ -129,6 +131,9 @@ func (r *UserRepo) CountAdmins(ctx context.Context) (int, error) {
 // 🛡️ UpdateUserRole handles the actual promotion/demotion after service-layer rank checks.
 func (r *UserRepo) UpdateUserRole(ctx context.Context, userID uuid.UUID, roleID uuid.UUID) error {
 	query := `UPDATE users SET role_id = $1, updated_at = NOW() WHERE id = $2`
-	_, err := r.pool.Exec(ctx, query, roleID, userID)
-	return err
+	tag, err := r.pool.Exec(ctx, query, roleID, userID)
+	if err != nil {
+		return err
+	}
+	return requireAffectedRow(tag.RowsAffected())
 }

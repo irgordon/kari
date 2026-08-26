@@ -8,11 +8,7 @@ import (
 )
 
 func main() {
-	// 🛡️ Zero-Trust: Allow override but default to internal port
-	target := os.Getenv("HEALTHCHECK_TARGET")
-	if target == "" {
-		target = "http://localhost:8080/health"
-	}
+	target := healthcheckTarget()
 
 	// 🛡️ SLA: Tight timeout for orchestration responsiveness
 	client := http.Client{
@@ -21,7 +17,7 @@ func main() {
 
 	start := time.Now()
 	resp, err := client.Get(target)
-	
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ Kari Brain Unreachable: %v (Duration: %v)\n", err, time.Since(start))
 		os.Exit(1)
@@ -36,4 +32,12 @@ func main() {
 
 	// Success remains silent to keep Docker logs clean
 	os.Exit(0)
+}
+
+func healthcheckTarget() string {
+	target := os.Getenv("HEALTHCHECK_TARGET")
+	if target == "" {
+		return "http://localhost:8080/ready"
+	}
+	return target
 }

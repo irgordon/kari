@@ -127,25 +127,3 @@ pub trait JobScheduler: Send + Sync {
     /// 🛡️ SLA: The binary + args split prevents shell interpretation.
     async fn schedule_job(&self, intent: &JobIntent) -> Result<(), String>;
 }
-
-// ==============================================================================
-// 7. Release Hygiene (SLA: Disk Space Management)
-// ==============================================================================
-
-#[async_trait]
-pub trait ReleaseManager: Send + Sync {
-    async fn prune_old_releases(
-        &self,
-        releases_dir: &Path,
-        keep_count: usize,
-    ) -> Result<usize, String>;
-}
-
-// ==============================================================================
-// 8. Log Management (SLA: Compliance & Rotation)
-// ==============================================================================
-
-#[async_trait]
-pub trait LogManager: Send + Sync {
-    async fn configure_logrotate(&self, domain_name: &str, log_dir: &str) -> Result<(), String>;
-}

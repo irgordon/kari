@@ -1,6 +1,6 @@
 module github.com/irgordon/kari
 
-go 1.24.3
+go 1.27.0
 
 require (
 	github.com/go-acme/lego/v4 v4.25.2
@@ -11,13 +11,13 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.7.6
-	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.40.0
 	golang.org/x/time v0.12.0
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -42,5 +42,4 @@ require (
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/tools v0.35.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

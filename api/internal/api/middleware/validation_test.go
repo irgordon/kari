@@ -129,9 +129,9 @@ func TestValidateEnvVars(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:   "non-POST/PUT methods skip validation",
-			method: "GET",
-			body:   nil,
+			name:       "non-POST/PUT methods skip validation",
+			method:     "GET",
+			body:       nil,
 			wantStatus: http.StatusOK,
 		},
 	}

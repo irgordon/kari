@@ -81,6 +81,7 @@ frontend_verification/
 .env.test.local
 .env.production.local
 *.env
+!toolchain.env
 
 # Local TLS/SSL Certificates generated for dev environments
 *.pem
@@ -93,6 +94,8 @@ frontend_verification/
 *.sqlite
 *.sqlite3
 /postgres-data/
+/.runtime/
+/.artifacts/
 
 # OS Specific generated files
 .DS_Store

@@ -9,8 +9,8 @@ import (
 // 🛡️ SLA: Implements backpressure (drop-on-full) and hanging-stream cancellation.
 type Hub struct {
 	mu          sync.RWMutex
-	subscribers map[string][]chan string            // deploymentID -> list of client channels
-	cancels     map[string]context.CancelFunc       // deploymentID -> cancel func for gRPC stream
+	subscribers map[string][]chan string      // deploymentID -> list of client channels
+	cancels     map[string]context.CancelFunc // deploymentID -> cancel func for gRPC stream
 }
 
 func NewHub() *Hub {

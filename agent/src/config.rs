@@ -11,7 +11,6 @@ pub struct AgentConfig {
     // 📂 Platform Agnostic Paths (Strictly Typed)
     pub web_root: PathBuf,
     pub systemd_dir: PathBuf,
-    pub logrotate_dir: PathBuf,
     pub ssl_storage_dir: PathBuf,
     pub proxy_conf_dir: PathBuf,
 }
@@ -48,10 +47,6 @@ impl AgentConfig {
 
             systemd_dir: PathBuf::from(
                 env::var("KARI_SYSTEMD_DIR").unwrap_or_else(|_| "/etc/systemd/system".to_string()),
-            ),
-
-            logrotate_dir: PathBuf::from(
-                env::var("KARI_LOGROTATE_DIR").unwrap_or_else(|_| "/etc/logrotate.d".to_string()),
             ),
 
             ssl_storage_dir: PathBuf::from(

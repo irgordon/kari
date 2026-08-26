@@ -1,10 +1,12 @@
-name: "Kari CodeQL"
+name: Kari CodeQL
 
 on:
-  push:
-    branches: [ "main", "work" ]
   pull_request:
-    branches: [ "main", "work" ]
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
 
 permissions:
   contents: read
@@ -12,79 +14,65 @@ permissions:
 
 jobs:
   analyze:
-    name: CodeQL Analysis
-    runs-on: ubuntu-latest
+    name: CodeQL / ${{ matrix.component }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: go
+            language: go
+            verify_target: verify-go
+          - component: rust
+            language: rust
+            verify_target: verify-rust
+          - component: frontend
+            language: javascript-typescript
+            verify_target: verify-frontend
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # ------------------------------------------------------------
-      # Cache CodeQL database
-      # ------------------------------------------------------------
-      - name: Cache CodeQL
-        uses: actions/cache@v4
+      - name: Load pinned toolchains
+        id: versions
+        run: ./scripts/export-toolchain.sh
+
+      - name: Set up Go
+        if: matrix.component == 'go'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          path: ~/.cache/codeql
-          key: ${{ runner.os }}-codeql-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-codeql-
+          go-version: ${{ steps.versions.outputs.go }}
+          cache-dependency-path: go.sum
 
-      # ------------------------------------------------------------
-      # Setup toolchains
-      # ------------------------------------------------------------
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - name: Set up Rust
+        if: matrix.component == 'rust'
+        run: rustup toolchain install "${{ steps.versions.outputs.rust }}" --profile minimal --component rustfmt --component clippy
+
+      - name: Set up Node
+        if: matrix.component == 'frontend'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          go-version: "1.22"
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: "npm"
+          node-version: ${{ steps.versions.outputs.node }}
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install system dependencies
+      - name: Install pinned protoc for Rust
+        if: matrix.component == 'rust'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler pkg-config libssl-dev
+          ./scripts/install-protoc.sh "$RUNNER_TEMP/protoc"
+          echo "$RUNNER_TEMP/protoc/bin" >> "$GITHUB_PATH"
 
-      # ------------------------------------------------------------
-      # Initialize CodeQL
-      # ------------------------------------------------------------
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
-          languages: go, rust, javascript
+          languages: ${{ matrix.language }}
           config-file: ./.github/codeql/codeql-config.yml
 
-      # ------------------------------------------------------------
-      # Manual builds
-      # ------------------------------------------------------------
-      - name: Build Go backend
-        run: |
-          cd backend
-          go mod download
-          go build ./...
+      - name: Build and test component
+        run: make "${{ matrix.verify_target }}"
 
-      - name: Build Rust agent
-        run: |
-          cd agent
-          cargo build --release
-
-      - name: Build React frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
-      # ------------------------------------------------------------
-      # Run CodeQL analysis
-      # ------------------------------------------------------------
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+      - name: Analyze component
+        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          category: /language:${{ matrix.language }}

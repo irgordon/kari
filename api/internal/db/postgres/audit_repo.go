@@ -54,7 +54,7 @@ func (r *AuditRepository) GetFilteredAlerts(ctx context.Context, filter domain.A
 	// 🛡️ Tenant Isolation: Enforce resource-level scoping
 	if filter.ResourceID != uuid.Nil {
 		filterSQL += fmt.Sprintf(" AND resource_id = $%d", argIdx)
-		args = append(args, filter.ResourceID.String())
+		args = append(args, filter.ResourceID)
 		argIdx++
 	}
 

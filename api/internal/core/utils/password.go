@@ -6,11 +6,11 @@ import (
 )
 
 var (
-	ErrPasswordTooShort        = errors.New("password must be at least 12 characters")
-	ErrPasswordNoUppercase     = errors.New("password must contain at least one uppercase letter")
-	ErrPasswordNoLowercase     = errors.New("password must contain at least one lowercase letter")
-	ErrPasswordNoNumber        = errors.New("password must contain at least one number")
-	ErrPasswordNoSpecialChar   = errors.New("password must contain at least one special character")
+	ErrPasswordTooShort      = errors.New("password must be at least 12 characters")
+	ErrPasswordNoUppercase   = errors.New("password must contain at least one uppercase letter")
+	ErrPasswordNoLowercase   = errors.New("password must contain at least one lowercase letter")
+	ErrPasswordNoNumber      = errors.New("password must contain at least one number")
+	ErrPasswordNoSpecialChar = errors.New("password must contain at least one special character")
 )
 
 // ValidatePasswordComplexity checks if a password meets the required complexity standards.

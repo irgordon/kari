@@ -57,10 +57,10 @@ func NewAESCryptoService(hexKey string) (*AESCryptoService, error) {
 // Encrypt secures the payload with zero extra heap allocations during the Seal phase.
 func (s *AESCryptoService) Encrypt(ctx context.Context, plaintext []byte, associatedData []byte) (string, error) {
 	// Acknowledge the context for interface compliance (e.g., tracing could be added here)
-	_ = ctx 
+	_ = ctx
 
 	nonceSize := s.aead.NonceSize()
-	
+
 	// 1. 🛡️ TRUE Performance: Exact Capacity Pre-allocation
 	// We create a slice where Length = nonceSize, but Capacity = nonceSize + len(plaintext) + tag size.
 	// This mathematically guarantees `Seal` will append without triggering a slice grow/reallocation.
@@ -74,7 +74,7 @@ func (s *AESCryptoService) Encrypt(ctx context.Context, plaintext []byte, associ
 	// 3. 🛡️ Authenticated Sealing
 	// Seal appends to the slice up to its capacity limit.
 	ciphertext := s.aead.Seal(buf[:nonceSize], buf[:nonceSize], plaintext, associatedData)
-	
+
 	return base64.URLEncoding.EncodeToString(ciphertext), nil
 }
 

@@ -32,18 +32,19 @@ func (r *PostgresDeploymentRepository) ClaimNextPending(ctx context.Context) (*d
 		SET status = $1, updated_at = NOW()
 		WHERE id = (
 			SELECT id FROM deployments
-			WHERE status = 'PENDING'
+			WHERE status = $2
 			ORDER BY created_at ASC
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1
 		)
-		RETURNING id, app_id, domain_name, repo_url, branch, build_command, target_port, encrypted_ssh_key;
+		RETURNING id, app_id, domain_name, repo_url, branch, build_command,
+		          target_port, COALESCE(encrypted_ssh_key, ''), env_vars, status;
 	`
 
 	d := &domain.Deployment{}
-	err = tx.QueryRow(ctx, query, domain.StatusRunning).Scan(
+	err = tx.QueryRow(ctx, query, domain.StatusRunning, domain.StatusPending).Scan(
 		&d.ID, &d.AppID, &d.DomainName, &d.RepoURL, &d.Branch,
-		&d.BuildCommand, &d.TargetPort, &d.EncryptedSSHKey,
+		&d.BuildCommand, &d.TargetPort, &d.EncryptedSSHKey, &d.EnvVars, &d.Status,
 	)
 
 	if err != nil {
@@ -71,14 +72,19 @@ func (r *PostgresDeploymentRepository) AppendLog(ctx context.Context, deployment
 // UpdateStatus 🛡️ State Machine Integrity
 func (r *PostgresDeploymentRepository) UpdateStatus(ctx context.Context, id string, status domain.Status) error {
 	query := `UPDATE deployments SET status = $1, updated_at = NOW() WHERE id = $2`
-	_, err := r.db.Exec(ctx, query, status, id)
-	return err
+	tag, err := r.db.Exec(ctx, query, status, id)
+	if err != nil {
+		return err
+	}
+	return requireAffectedRow(tag.RowsAffected())
 }
 
 func (r *PostgresDeploymentRepository) Save(ctx context.Context, deployment *domain.Deployment) error {
 	query := `
-		INSERT INTO deployments (id, app_id, domain_name, repo_url, branch, build_command, target_port, encrypted_ssh_key, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO deployments (
+			id, app_id, domain_name, repo_url, branch, build_command,
+			target_port, encrypted_ssh_key, env_vars, status
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	_, err := r.db.Exec(ctx, query,
 		deployment.ID,
@@ -89,6 +95,7 @@ func (r *PostgresDeploymentRepository) Save(ctx context.Context, deployment *dom
 		deployment.BuildCommand,
 		deployment.TargetPort,
 		deployment.EncryptedSSHKey,
+		deployment.EnvVars,
 		deployment.Status,
 	)
 	return err

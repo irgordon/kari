@@ -9,10 +9,10 @@ import (
 type Status string
 
 const (
-	StatusPending Status = "PENDING"
-	StatusRunning Status = "RUNNING"
-	StatusSuccess Status = "SUCCESS"
-	StatusFailed  Status = "FAILED"
+	StatusPending Status = "pending"
+	StatusRunning Status = "running"
+	StatusSuccess Status = "success"
+	StatusFailed  Status = "failed"
 )
 
 type Deployment struct {

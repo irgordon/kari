@@ -1,61 +1,24 @@
-# 🏛️ Karı Architecture & Security Model (v2026.4)
+# Kari baseline architecture
 
-Karı is a platform-agnostic orchestration engine designed for high-stakes 2026 security environments. It operates on a **Deep Zero-Trust** model, ensuring that a compromise in one layer cannot escalate to host-level access.
+Kari has four runtime components with one supported deployment boundary.
 
----
-
-## 🛠️ The Three Pillars
-
-### 1. The Window (React Frontend)
-
-The "Window" is a hardened React application acting as the administrative interface.
-
-* **Tech:** React, Vite, Tailwind CSS, Lucide, xterm.js.
-* **Security:** Implements **JWT verification** in client-side hooks using the `jose` library. It strictly enforces `HttpOnly`, `SameSite=Strict` cookies.
-* **Telemetry:** Utilizes **Server-Sent Events (SSE)** for real-time log streaming, providing a unidirectional, proxy-friendly pipe for build logs.
-* **Deployment:** Containerized via a multi-stage Vite build on a non-root Alpine base.
-
-### 2. The Brain (Go API Gateway)
-
-The "Brain" is the authoritative state machine. It is the only component that speaks to the Database and the outside world simultaneously.
-
-* **Tech:** Go 1.22+, PostgreSQL 16, gRPC (Client).
-* **Hardening:** Built as a **Multi-stage Distroless** image. It contains no shell, no `curl`, and no package manager, drastically reducing the RCE (Remote Code Execution) attack surface.
-* **Health & SLA:** Features a custom **Go-based Healthcheck Prober** that verifies the gRPC backplane link before reporting the service as "Ready" to the UI.
-* **CryptoService:** Handles **AES-256-GCM** encryption/decryption of application secrets. Plaintext secrets never touch the database.
-
-### 3. The Muscle (Rust System Agent)
-
-The "Muscle" is the execution engine. It is physically isolated from the internet and the Brain’s network.
-
-* **Tech:** Rust 1.80+, gRPC (Tonic Server), systemd, cgroup v2.
-* **Jail Strategy:** Uses `systemd-run` and `cgroup v2` to create transient, resource-limited jails for user applications.
-* **Zero-Trust Link:** Communicates via a **Unix Domain Socket** (`/var/run/kari/agent.sock`). It enforces **gRPC Peer Credentials**—it will only accept commands if the calling process UID matches the Brain's specific ID (1001).
-* **Memory Privacy:** Implements strict zeroization of buffers after sensitive private keys are used for Git operations.
-
----
-
-## 🌐 Network & Communication Topology
-
-| Link | Protocol | Security Layer |
+| Component | Runtime | Boundary |
 | --- | --- | --- |
-| **Admin ➜ Window** | HTTPS | TLS 1.3 + JWT |
-| **Window ➜ Brain** | HTTP (Internal) | Docker Backplane + JWT |
-| **Brain ➜ Muscle** | **gRPC (UDS)** | **PeerCreds (UID Validation)** |
-| **Brain ➜ DB** | SQL | Scoped Credentials + Internal Bridge |
+| PostgreSQL | Container | Persistent database volume on the internal backplane |
+| Go API | Container, UID/GID 1001 | HTTP gateway, database access, native-agent Unix socket |
+| React frontend | Nginx container | Static UI and `/api/` reverse proxy |
+| Rust agent | Native Linux systemd service as root | Host users, services, firewall, proxy, packages, and files |
 
----
+`docker-compose.yml` is the container topology authority. The native unit at
+`deploy/systemd/kari-agent.service` is the privileged-agent authority. The
+shared socket is `/run/kari/agent.sock`; production Compose binds `/run/kari`
+into the API container and requires the agent for readiness.
 
-## 🛡️ Security Mandates
+The API exposes `/health` for process liveness and `/ready` for dependency
+readiness. Development and CI may set `KARI_REQUIRE_AGENT=false`; that mode is a
+database/API/frontend smoke test and is not an end-to-end agent test.
 
-1. **Forensic Observability:** Every system event is captured in the **Action Center** and **System Logs**, with unique `trace_id` propagation from the UI down to the Rust execution logs.
-2. **Immutability:** The Brain and Window filesystems are read-only in production. All persistent state is strictly offloaded to Postgres or the specific `dev_root` managed by the Muscle.
-3. **Fail-Closed Design:** If the gRPC link to the Muscle is severed, the Brain immediately reports as `Unhealthy`, and the UI "locks" all deployment actions to prevent state corruption.
-
----
-
-## 🏁 Development & Orchestration
-
-The entire lifecycle is managed via a hardened `Makefile` and `docker-compose` environment, ensuring that development environments are bit-for-bit mirrors of the production security posture.
-
----
+The canonical database chain is listed in
+`api/internal/db/migrations/manifest.txt`. The migration binary applies every
+pending file in one transaction and records its SHA-256 checksum in
+`schema_migrations`.

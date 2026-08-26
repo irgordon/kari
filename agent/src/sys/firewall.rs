@@ -96,7 +96,6 @@ impl FirewallManager for LinuxFirewallManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::sys::traits::{FirewallAction, FirewallPolicy, Protocol};
 
     #[test]
@@ -227,7 +226,7 @@ mod tests {
             protocol: Protocol::Udp,
             source_ip: None,
         };
-        let mut args: Vec<String> = vec!["-A", "INPUT", "-p", "udp", "--dport", "80"]
+        let mut args: Vec<String> = ["-A", "INPUT", "-p", "udp", "--dport", "80"]
             .iter()
             .map(|s| s.to_string())
             .collect();

@@ -1,58 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROTO_SRC="proto/kari/agent/v1/agent.proto"
-GO_OUT="api/internal/grpc/rustagent"
-RUST_OUT="agent/src/proto"
+readonly ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly MANIFEST="$ROOT_DIR/proto/generated-files.txt"
+readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kari-proto.XXXXXX")"
 
-# Optional proto toolchain: skip if missing
-missing=0
-if ! command -v protoc >/dev/null 2>&1; then
-  echo "⚠️  Skipping proto generation: protoc not found."
-  missing=1
-fi
-if ! command -v protoc-gen-go >/dev/null 2>&1; then
-  echo "⚠️  Skipping proto generation: protoc-gen-go not found."
-  missing=1
-fi
-if ! command -v protoc-gen-go-grpc >/dev/null 2>&1; then
-  echo "⚠️  Skipping proto generation: protoc-gen-go-grpc not found."
-  missing=1
-fi
-if [[ "$missing" -eq 1 ]]; then
-  echo "ℹ️  Proto generation skipped. Install tools only when modifying API definitions."
-  exit 0
-fi
+main() {
+  trap cleanup EXIT
+  "$ROOT_DIR/scripts/proto-generate-into.sh" "$TEMP_DIR"
+  install_generated_outputs
+  echo "Protobuf outputs regenerated."
+}
 
-MODULE_PATH="$(go list -m -f '{{.Path}}' 2>/dev/null || true)"
-if [[ -z "$MODULE_PATH" ]]; then
-  echo "❌ Unable to resolve Go module path."
-  exit 1
-fi
+install_generated_outputs() {
+  local relative_path
+  while IFS= read -r relative_path; do
+    install -m 0644 "$TEMP_DIR/$relative_path" "$ROOT_DIR/$relative_path"
+  done < "$MANIFEST"
+}
 
-EXPECTED_GO_PACKAGE="${MODULE_PATH}/api/internal/grpc/rustagent"
-echo "Generating gRPC stubs..."
-echo "  module:     $MODULE_PATH"
-echo "  go_package: ${EXPECTED_GO_PACKAGE};rustagent"
+cleanup() {
+  rm -rf "$TEMP_DIR"
+}
 
-mkdir -p "$GO_OUT" "$RUST_OUT"
-rm -f "$GO_OUT"/*.go
-rm -f "$RUST_OUT/agent_descriptor.bin"
-
-echo "  → Go stubs"
-protoc --proto_path=. \
-  --go_out=. --go_opt=module="$MODULE_PATH" \
-  --go-grpc_out=. --go-grpc_opt=module="$MODULE_PATH" \
-  "$PROTO_SRC"
-
-echo "  → Rust descriptor"
-protoc --proto_path=. "$PROTO_SRC" \
-  --descriptor_set_out="$RUST_OUT/agent_descriptor.bin"
-
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-  chown -R 1001:1001 "$GO_OUT" || true
-fi
-
-echo "Done."
-echo "Go:   $GO_OUT"
-echo "Rust: $RUST_OUT/agent_descriptor.bin"
+main "$@"

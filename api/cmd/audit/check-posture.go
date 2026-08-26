@@ -49,7 +49,7 @@ func main() {
 	// --- Audit Point 1: Encryption Key Entropy ---
 	encKey := os.Getenv("ENCRYPTION_KEY")
 	if len(encKey) != manifest.Boundaries.Cryptography.MinKeyEntropyHex {
-		fmt.Printf("❌ FAIL: ENCRYPTION_KEY must be exactly %d hex characters (Current: %d)\n", 
+		fmt.Printf("❌ FAIL: ENCRYPTION_KEY must be exactly %d hex characters (Current: %d)\n",
 			manifest.Boundaries.Cryptography.MinKeyEntropyHex, len(encKey))
 		hasErrors = true
 	} else {
@@ -59,7 +59,7 @@ func main() {
 	// --- Audit Point 2: JWT Secret Strength ---
 	jwtSec := os.Getenv("JWT_SECRET")
 	if len(jwtSec) < manifest.Boundaries.Cryptography.MinJWTSecretLen {
-		fmt.Printf("❌ FAIL: JWT_SECRET is too short. Min: %d characters (Current: %d)\n", 
+		fmt.Printf("❌ FAIL: JWT_SECRET is too short. Min: %d characters (Current: %d)\n",
 			manifest.Boundaries.Cryptography.MinJWTSecretLen, len(jwtSec))
 		hasErrors = true
 	} else {
@@ -70,10 +70,10 @@ func main() {
 	// This check is primarily for the Go API container environment
 	currentUser, _ := user.Current()
 	currentUID, _ := strconv.Atoi(currentUser.Uid)
-	
+
 	// Check if the expected UID matches the current context
 	if currentUID != manifest.Boundaries.ZeroTrust.ExpectedUID && currentUID != 0 {
-		fmt.Printf("⚠️  NOTICE: Current UID (%d) differs from manifest expected UID (%d).\n", 
+		fmt.Printf("⚠️  NOTICE: Current UID (%d) differs from manifest expected UID (%d).\n",
 			currentUID, manifest.Boundaries.ZeroTrust.ExpectedUID)
 		fmt.Println("   (This is normal on host, but MUST match inside Docker for PeerCreds).")
 	}

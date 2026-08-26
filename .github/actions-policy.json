@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "actions": [
+    {
+      "repository": "actions/checkout",
+      "release": "v7.0.1",
+      "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "runtime": "javascript-node24",
+      "minimum_major": 7,
+      "allowed_paths": [""],
+      "release_url": "https://github.com/actions/checkout/releases/tag/v7.0.1"
+    },
+    {
+      "repository": "actions/setup-go",
+      "release": "v7.0.0",
+      "sha": "b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
+      "runtime": "javascript-node24",
+      "minimum_major": 7,
+      "allowed_paths": [""],
+      "release_url": "https://github.com/actions/setup-go/releases/tag/v7.0.0"
+    },
+    {
+      "repository": "actions/setup-node",
+      "release": "v7.0.0",
+      "sha": "820762786026740c76f36085b0efc47a31fe5020",
+      "runtime": "javascript-node24",
+      "minimum_major": 7,
+      "allowed_paths": [""],
+      "release_url": "https://github.com/actions/setup-node/releases/tag/v7.0.0"
+    },
+    {
+      "repository": "github/codeql-action",
+      "release": "v4.37.8",
+      "sha": "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28",
+      "runtime": "javascript-node24",
+      "minimum_major": 4,
+      "allowed_paths": ["init", "analyze"],
+      "release_url": "https://github.com/github/codeql-action/releases/tag/v4.37.8"
+    }
+  ]
+}

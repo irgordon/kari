@@ -1,112 +1,66 @@
-# ==============================================================================
-# Kari Orchestration Engine - Master Control
-# SLA: Single-command lifecycle with mandatory security audits
-# ==============================================================================
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
 
-.PHONY: help gen-secrets audit build build-prod up down restart clean logs proto proto-check frontend-setup verify dev
+include toolchain.env
 
-# Default target: Shows available commands
+export GOTOOLCHAIN := go$(GO_VERSION)
+
+.PHONY: help verify verify-preflight verify-go verify-rust verify-frontend verify-proto \
+	verify-database verify-topology verify-static verify-docs proto compose-up compose-down \
+	topology-smoke migrate
+
 help:
-    @echo "Kari Orchestration Commands"
-    @echo "Usage: make [target]"
-    @echo ""
-    @echo "High-Level Targets:"
-    @echo "  deploy          - Full Lifecycle: Generate secrets -> Audit -> Build -> Up"
-    @echo "  deploy-prod     - Production Build: Secrets -> Audit -> Distroless -> Up"
-    @echo ""
-    @echo "Individual Targets:"
-    @echo "  gen-secrets     - Generates .env with high-entropy keys"
-    @echo "  audit           - Validates .env against security_strict.json"
-    @echo "  build           - Build all Docker containers (dev)"
-    @echo "  build-prod      - Build production containers (distroless + stripped)"
-    @echo "  up              - Start the stack"
-    @echo "  down            - Stop and remove containers"
-    @echo "  clean           - Hard reset: Remove volumes and .env"
-    @echo "  proto           - Regenerate gRPC protobuf stubs"
-    @echo "  proto-check     - Fail if protobuf outputs are stale"
-    @echo "  verify          - Run unified Go/Rust/Frontend validation"
+	@echo "Kari baseline commands"
+	@echo "  make verify          Run the complete local/CI verification contract"
+	@echo "  make proto           Regenerate committed protobuf artifacts"
+	@echo "  make migrate         Apply the canonical database migration chain"
+	@echo "  make compose-up      Start the supported container topology"
+	@echo "  make compose-down    Stop the supported container topology"
+	@echo "  make topology-smoke  Build, start, and health-check the topology"
 
-# The Master Lifecycle (Development)
-deploy: gen-secrets audit build up
-
-# The Production Lifecycle (Distroless + Hardened)
-deploy-prod: gen-secrets audit build-prod up
-
-# Step 1: Generate Secrets
-gen-secrets:
-    @if [ ! -f .env ]; then \
-        echo ".env missing. Running secure generator..."; \
-        chmod +x scripts/gen-secrets.sh && ./scripts/gen-secrets.sh; \
-    else \
-        echo ".env already exists. Skipping generation."; \
-    fi
-
-# Step 2: Security Posture Audit
-audit:
-    @echo "Running Security Posture Audit..."
-    @go run api/cmd/audit/check-posture.go
-
-# Step 3: Docker Lifecycle (Development)
-build:
-    @echo "Building Docker images (dev)..."
-    @docker-compose build
-
-# Step 3b: Docker Lifecycle (Production — Distroless + Stripped)
-# Zero-Trust: Uses Dockerfile.prod for the Brain with:
-#   - gcr.io/distroless/static-debian12 (no shell, no package manager)
-#   - UID 1001 (matches PeerCred validation)
-#   - CGO_ENABLED=0 + -ldflags="-s -w" (fully static, stripped)
-build-prod:
-    @echo "Building PRODUCTION Docker images..."
-    @docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
-
-up:
-    @echo "Starting Kari Engine..."
-    @docker-compose up -d
-    @echo "Stack is live. UI: http://localhost:5173 | API: http://localhost:8080"
-
-down:
-    @echo "Stopping Kari Engine..."
-    @docker-compose down
-
-restart: down up
-
-# Maintenance
-clean:
-    @echo "Removing all volumes and secrets..."
-    @docker-compose down -v
-    @rm -f .env
-    @echo "Clean complete."
-
-logs:
-    @docker-compose logs -f
-
-# Proto Regeneration
-proto:
-    @echo "Regenerating protobuf stubs..."
-    @chmod +x scripts/proto-gen.sh && ./scripts/proto-gen.sh
-    @echo "Proto stubs regenerated."
-
-# Proto Drift Guard (CI check)
-proto-check:
-    @echo "Validating protobuf stubs are up to date..."
-    @chmod +x scripts/check-proto-drift.sh && ./scripts/check-proto-drift.sh
-
-# Frontend dependency bootstrap (deterministic install)
-frontend-setup:
-    @echo "Installing frontend dependencies..."
-    @npm --prefix frontend ci
-
-# Unified Local/CI Validation
 verify:
-    @echo "Running unified verification pipeline..."
-    @go test ./...
-    @cd agent && cargo fmt -- --check
-    @cd agent && cargo clippy --all-targets --all-features
-    @cd agent && cargo test
-    @npm --prefix frontend run check
-    @npm --prefix frontend run test -- --run
-    @echo "verify completed"
+	@./scripts/verify.sh
 
-# Single entrypoint for local/CI development verification
-dev: frontend-setup verify
+verify-preflight:
+	@./scripts/verify-preflight.sh
+
+verify-go:
+	@./scripts/verify-go.sh
+
+verify-rust:
+	@./scripts/verify-rust.sh
+
+verify-frontend:
+	@./scripts/verify-frontend.sh
+
+verify-proto:
+	@./scripts/check-proto-drift.sh
+
+verify-database:
+	@./scripts/verify-database.sh
+
+verify-topology:
+	@./scripts/verify-topology.sh
+
+verify-static:
+	@./scripts/verify-static.sh
+
+verify-docs:
+	@./scripts/verify-docs.sh
+
+proto:
+	@./scripts/proto-gen.sh
+
+migrate:
+	@go run ./api/cmd/migrate
+
+compose-up:
+	@docker build --build-arg "GO_BUILDER_IMAGE=$(GO_BUILDER_IMAGE)" --tag kari-api:local --file api/Dockerfile .
+	@./scripts/compose.sh build frontend
+	@./scripts/compose.sh up --no-build --detach
+
+compose-down:
+	@./scripts/compose.sh down --remove-orphans
+
+topology-smoke:
+	@./scripts/topology-smoke.sh

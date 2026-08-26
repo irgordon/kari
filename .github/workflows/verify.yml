@@ -2,65 +2,82 @@ name: Kari Verify
 
 on:
   pull_request:
+    branches: [main]
   push:
-    branches:
-      - main
-      - work
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
   verify:
-    name: Unified Verify
-    runs-on: ubuntu-latest
-
+    name: Verify / ${{ matrix.stage }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        stage:
+          - preflight
+          - go
+          - rust
+          - frontend
+          - proto
+          - database
+          - topology
+          - static
+          - docs
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # ------------------------------------------------------------
-      # 1. Toolchains
-      # ------------------------------------------------------------
+      - name: Load pinned toolchains
+        id: versions
+        run: ./scripts/export-toolchain.sh
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        if: contains(fromJSON('["preflight","go","proto","database","static"]'), matrix.stage)
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.22"
+          go-version: ${{ steps.versions.outputs.go }}
+          cache-dependency-path: go.sum
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+        if: contains(fromJSON('["preflight","rust"]'), matrix.stage)
+        run: rustup toolchain install "${{ steps.versions.outputs.rust }}" --profile minimal --component rustfmt --component clippy
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        if: contains(fromJSON('["preflight","frontend"]'), matrix.stage)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "22"
-          cache: "npm"
+          node-version: ${{ steps.versions.outputs.node }}
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # ------------------------------------------------------------
-      # 2. Protobuf toolchain (required)
-      # ------------------------------------------------------------
-
-      - name: Install protobuf tooling
+      - name: Install pinned protoc
+        if: contains(fromJSON('["preflight","rust","proto"]'), matrix.stage)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+          ./scripts/install-protoc.sh "$RUNNER_TEMP/protoc"
+          echo "$RUNNER_TEMP/protoc/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned Go protobuf generators
+        if: contains(fromJSON('["preflight","proto"]'), matrix.stage)
+        run: |
+          source toolchain.env
+          go install "google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}"
+          go install "google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      # ------------------------------------------------------------
-      # 3. Proto drift check
-      # ------------------------------------------------------------
+      - name: Run verification stage
+        run: make "verify-${{ matrix.stage }}"
 
-      - name: Verify protobuf outputs
-        run: make proto-check
-
-      # ------------------------------------------------------------
-      # 4. Unified verification
-      # ------------------------------------------------------------
-
-      - name: Run unified verification
-        run: make dev
+  kari-verify:
+    name: Kari Verify
+    runs-on: ubuntu-24.04
+    if: always()
+    needs: [verify]
+    steps:
+      - name: Require every verification stage
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+        run: test "$VERIFY_RESULT" = success

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -146,6 +147,7 @@ func main() {
 		DeployHandler:  deployHandler,
 		SetupHandler:   setupHandler,
 		AuthMiddleware: authMiddleware,
+		ReadinessCheck: newReadinessCheck(dbPool, healthProber, cfg.RequireAgent),
 		Logger:         logger,
 	})
 
@@ -177,4 +179,24 @@ func main() {
 		logger.Error("ERROR: Forced shutdown", "error", err)
 	}
 	logger.Info("✅ Kari Panel Brain shutdown. Muscle Agent remains in jail.")
+}
+
+type databasePinger interface {
+	Ping(context.Context) error
+}
+
+type agentHealth interface {
+	IsHealthy() bool
+}
+
+func newReadinessCheck(database databasePinger, agentProbe agentHealth, requireAgent bool) func(context.Context) error {
+	return func(ctx context.Context) error {
+		if err := database.Ping(ctx); err != nil {
+			return fmt.Errorf("database is not ready: %w", err)
+		}
+		if requireAgent && !agentProbe.IsHealthy() {
+			return errors.New("native agent is not ready")
+		}
+		return nil
+	}
 }

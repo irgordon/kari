@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -20,6 +21,7 @@ type Config struct {
 
 	// 🛡️ The Execution Boundary
 	AgentSocket      string // e.g., "/var/run/kari/agent.sock"
+	RequireAgent     bool
 	AcmeDirectoryUrl string
 	WebRoot          string
 	WebUser          string
@@ -68,6 +70,7 @@ func Load() *Config {
 
 		// 2. 🛡️ Network Agnosticism: The only way the Brain talks to the Muscle
 		AgentSocket:      getEnv("AGENT_SOCKET", "/var/run/kari/agent.sock"),
+		RequireAgent:     getBoolEnv("KARI_REQUIRE_AGENT", false),
 		AcmeDirectoryUrl: getEnv("ACME_DIRECTORY_URL", ""),
 		WebRoot:          getEnv("WEB_ROOT", "/var/www/kari"),
 		WebUser:          getEnv("WEB_USER", "www-data"),
@@ -75,6 +78,18 @@ func Load() *Config {
 		SSLStorageDir:    getEnv("SSL_STORAGE_DIR", "/etc/letsencrypt/live"),
 		NginxConfPath:    getEnv("NGINX_CONF_PATH", "/etc/nginx/conf.d"),
 	}
+}
+
+func getBoolEnv(key string, fallback bool) bool {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Fatalf("invalid boolean value for %s: %q", key, value)
+	}
+	return parsed
 }
 
 // getEnv retrieves an environment variable or returns a fallback value.

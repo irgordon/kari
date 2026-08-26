@@ -132,7 +132,8 @@ func (h *SetupHandler) SetupGuard(next http.Handler) http.Handler {
 			strings.HasPrefix(path, "/_app/") ||
 			strings.HasPrefix(path, "/static/") ||
 			path == "/favicon.ico" ||
-			path == "/health" {
+			path == "/health" ||
+			path == "/ready" {
 			next.ServeHTTP(w, r)
 			return
 		}

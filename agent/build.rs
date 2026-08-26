@@ -1,15 +1,13 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Re-run the build script if the protobuf definition changes
-    println!("cargo:rerun-if-changed=proto/kari/agent/v1/agent.proto");
+    const PROTO_FILE: &str = "../proto/kari/agent/v1/agent.proto";
+    const PROTO_ROOT: &str = "../proto";
+
+    println!("cargo:rerun-if-changed={PROTO_FILE}");
 
     tonic_build::configure()
-        // The agent is a server only; do not generate client stubs
         .build_client(false)
         .build_server(true)
-        .compile(
-            &["proto/kari/agent/v1/agent.proto"], // actual proto file
-            &["proto"],                           // include root
-        )?;
+        .compile(&[PROTO_FILE], &[PROTO_ROOT])?;
 
     Ok(())
 }

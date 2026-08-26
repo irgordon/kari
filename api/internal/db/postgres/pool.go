@@ -17,9 +17,9 @@ func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	}
 
 	// 🛡️ SLA Performance: Pooling thresholds
-	config.MaxConns = 50                 // Maximum open connections
-	config.MinConns = 5                  // Minimum idle connections kept alive
-	config.MaxConnLifetime = time.Hour   // Recycle connections every hour
+	config.MaxConns = 50                      // Maximum open connections
+	config.MinConns = 5                       // Minimum idle connections kept alive
+	config.MaxConnLifetime = time.Hour        // Recycle connections every hour
 	config.MaxConnIdleTime = time.Minute * 30 // Close idle connections after 30 mins
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)

@@ -2,6 +2,7 @@
 package router
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
@@ -25,6 +26,7 @@ type RouterConfig struct {
 	SetupHandler   *handlers.SetupHandler
 	AuthMiddleware *auth_middleware.AuthMiddleware
 	DeployHandler  *handlers.DeploymentHandler
+	ReadinessCheck func(context.Context) error
 	Logger         *slog.Logger
 }
 
@@ -87,8 +89,9 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			r.Post("/auth/login", cfg.AuthHandler.Login)
 			r.Post("/auth/refresh", cfg.AuthHandler.Refresh)
 
-			// Webhook now takes an {id} to isolate database lookups
-			r.Post("/webhooks/github/{id}", cfg.AppHandler.HandleGitHubWebhook)
+			if cfg.AppHandler != nil {
+				r.Post("/webhooks/github/{id}", cfg.AppHandler.HandleGitHubWebhook)
+			}
 		})
 
 		// ---------------------------------------------------------------------
@@ -118,53 +121,59 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				})
 			})
 
-			// --- Domains & SSL ---
-			r.Route("/domains", func(r chi.Router) {
-				r.With(cfg.AuthMiddleware.RequirePermission("domains", "read")).
-					Get("/", cfg.DomainHandler.List)
+			if cfg.DomainHandler != nil {
+				r.Route("/domains", func(r chi.Router) {
+					r.With(cfg.AuthMiddleware.RequirePermission("domains", "read")).
+						Get("/", cfg.DomainHandler.List)
 
-				r.With(cfg.AuthMiddleware.RequirePermission("domains", "write")).
-					Post("/", cfg.DomainHandler.Create)
+					r.With(cfg.AuthMiddleware.RequirePermission("domains", "write")).
+						Post("/", cfg.DomainHandler.Create)
 
-				r.With(cfg.AuthMiddleware.RequirePermission("domains", "delete")).
-					Delete("/{id}", cfg.DomainHandler.Delete)
+					r.With(cfg.AuthMiddleware.RequirePermission("domains", "delete")).
+						Delete("/{id}", cfg.DomainHandler.Delete)
 
-				r.With(cfg.AuthMiddleware.RequirePermission("domains", "write")).
-					Post("/{id}/ssl", cfg.DomainHandler.ProvisionSSL)
-			})
+					r.With(cfg.AuthMiddleware.RequirePermission("domains", "write")).
+						Post("/{id}/ssl", cfg.DomainHandler.ProvisionSSL)
+				})
+			}
 
-			// --- Applications & Deployments ---
-			r.Route("/applications", func(r chi.Router) {
+			if cfg.AppHandler != nil {
+				r.Route("/applications", func(r chi.Router) {
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).
+						Get("/", cfg.AppHandler.List)
+
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "write")).
+						Post("/", cfg.AppHandler.Create)
+
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).
+						Get("/{id}", cfg.AppHandler.GetByID)
+
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "write")).
+						With(auth_middleware.ValidateEnvVars).
+						Put("/{id}/env", cfg.AppHandler.UpdateEnv)
+
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "deploy")).
+						Post("/{id}/deploy", cfg.AppHandler.TriggerDeploy)
+				})
+			}
+
+			if cfg.AuditHandler != nil {
+				r.With(cfg.AuthMiddleware.RequirePermission("audit_logs", "read")).
+					Get("/audit", cfg.AuditHandler.HandleGetTenantLogs)
+
+				r.With(cfg.AuthMiddleware.RequirePermission("server", "manage")).
+					Get("/admin/alerts", cfg.AuditHandler.HandleGetAdminAlerts)
+			}
+
+			if cfg.WSHandler != nil {
 				r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).
-					Get("/", cfg.AppHandler.List)
-
-				r.With(cfg.AuthMiddleware.RequirePermission("applications", "write")).
-					Post("/", cfg.AppHandler.Create)
-
-				r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).
-					Get("/{id}", cfg.AppHandler.GetByID)
-
-				r.With(cfg.AuthMiddleware.RequirePermission("applications", "write")).
-					With(auth_middleware.ValidateEnvVars).
-					Put("/{id}/env", cfg.AppHandler.UpdateEnv)
-
-				r.With(cfg.AuthMiddleware.RequirePermission("applications", "deploy")).
-					Post("/{id}/deploy", cfg.AppHandler.TriggerDeploy)
-			})
-
-			// --- Privacy-First Observability & Audit Logs ---
-			r.With(cfg.AuthMiddleware.RequirePermission("audit_logs", "read")).
-				Get("/audit", cfg.AuditHandler.HandleGetTenantLogs)
-
-			r.With(cfg.AuthMiddleware.RequirePermission("server", "manage")).
-				Get("/admin/alerts", cfg.AuditHandler.HandleGetAdminAlerts)
-
-			// --- WebSocket Real-Time Terminal Streaming ---
-			r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).
-				With(auth_middleware.ValidateTraceID("trace_id")).
-				Get("/ws/deployments/{trace_id}", cfg.WSHandler.StreamDeploymentLogs)
+					With(auth_middleware.ValidateTraceID("trace_id")).
+					Get("/ws/deployments/{trace_id}", cfg.WSHandler.StreamDeploymentLogs)
+			}
 		})
 	})
+
+	registerHealthRoutes(r, cfg.ReadinessCheck)
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -180,4 +189,28 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	}
 
 	return r
+}
+
+func registerHealthRoutes(router chi.Router, check func(context.Context) error) {
+	router.Get("/health", handleLiveness)
+	router.Get("/ready", handleReadiness(check))
+}
+
+func handleLiveness(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"alive"}`))
+}
+
+func handleReadiness(check func(context.Context) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if check == nil || check(r.Context()) == nil {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ready"}`))
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"status":"not_ready"}`))
+	}
 }

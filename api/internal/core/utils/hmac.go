@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	// Maximum webhook payload size (10MB). 
+	// Maximum webhook payload size (10MB).
 	// This prevents memory exhaustion attacks.
 	MaxWebhookBodySize = 10 * 1024 * 1024
 )
 
-// VerifyGitHubSignature calculates the HMAC of the raw body and compares it 
+// VerifyGitHubSignature calculates the HMAC of the raw body and compares it
 // against the X-Hub-Signature-256 header in constant time.
 func VerifyGitHubSignature(rawBody []byte, signatureHeader string, secret []byte) error {
 	// 🛡️ 1. Sanity & Entropy Checks

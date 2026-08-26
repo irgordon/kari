@@ -1,0 +1,3 @@
+agent/src/proto/agent_descriptor.bin
+api/internal/grpc/rustagent/agent.pb.go
+api/internal/grpc/rustagent/agent_grpc.pb.go
