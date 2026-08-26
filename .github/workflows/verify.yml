@@ -35,6 +35,12 @@ jobs:
         id: versions
         run: ./scripts/export-toolchain.sh
 
+      - name: Install text validation dependency
+        if: contains(fromJSON('["static","docs"]'), matrix.stage)
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+
       - name: Set up Go
         if: contains(fromJSON('["preflight","go","proto","database","static"]'), matrix.stage)
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
