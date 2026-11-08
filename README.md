@@ -128,6 +128,7 @@ statically. It does not execute privileged Linux host mutations.
 
 ## Documentation
 
+- [Technical specification](docs/TECHNICAL_SPEC.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Operations](docs/OPERATIONS.md)
 - [Agent API](docs/AGENT_API.md)
