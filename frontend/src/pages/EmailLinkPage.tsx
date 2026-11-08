@@ -21,7 +21,8 @@ export function EmailLinkPage({ onSignedIn, onReset }: { onSignedIn: (user: Acco
     if (purpose === 'reset' && password !== confirmation) { setError('Passwords do not match.'); return }
     setBusy(true); setError('')
     try {
-      const result = await apiPost<object, { user?: AccountUser; message?: string }>(`/api/v1/auth/email/${purpose}` as ApiPath, { token, password })
+      const result = await apiPost<object, { user?: AccountUser; message?: string; mfa_required?: boolean }>(`/api/v1/auth/email/${purpose}` as ApiPath, { token, password })
+      if (result.mfa_required) { onReset(); navigate('/login?mfa=1', { replace: true }); return }
       setPassword(''); setConfirmation('')
       if (purpose === 'reset') { onReset(); setMessage(result.message ?? 'Password updated. Sign in again.') }
       else if (result.user) { onSignedIn(result.user); navigate(purpose === 'verify' ? '/account' : '/', { replace: true }) }

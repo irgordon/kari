@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: kari-api:local
+    image: ${KARI_API_IMAGE:-kari-api:local}
     build:
       context: .
       dockerfile: api/Dockerfile
@@ -36,7 +36,7 @@ services:
     restart: "no"
 
   api:
-    image: kari-api:local
+    image: ${KARI_API_IMAGE:-kari-api:local}
     build:
       context: .
       dockerfile: api/Dockerfile
@@ -47,6 +47,8 @@ services:
       KARI_ENV: ${KARI_ENV:-development}
       DATABASE_URL: postgres://kari:${DB_PASSWORD:-kari_dev_database_only}@db:5432/kari?sslmode=disable
       JWT_SECRET: ${JWT_SECRET:-kari_development_jwt_secret_only}
+      KARI_SETUP_TOKEN: ${KARI_SETUP_TOKEN:-}
+      KARI_VERSION: ${KARI_VERSION:-development}
       KARI_PUBLIC_URL: ${KARI_PUBLIC_URL:-}
       KARI_SMTP_HOST: ${KARI_SMTP_HOST:-}
       KARI_SMTP_PORT: ${KARI_SMTP_PORT:-587}
@@ -80,6 +82,9 @@ services:
     restart: unless-stopped
 
   frontend:
+    image: ${KARI_FRONTEND_IMAGE:-kari-frontend:local}
+    volumes:
+      - ${KARI_FRONTEND_CONFIG:-./frontend/nginx.conf}:/etc/nginx/conf.d/default.conf:ro
     build:
       context: frontend
       dockerfile: Dockerfile
@@ -90,12 +95,12 @@ services:
       - "${KARI_FRONTEND_PORT:-3000}:8080"
     depends_on:
       api:
-        condition: service_healthy
+        condition: service_started
     networks:
       frontend:
         ipv4_address: ${KARI_PROXY_IP:-172.30.231.3}
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/health"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health"]
       interval: 3s
       timeout: 3s
       retries: 30

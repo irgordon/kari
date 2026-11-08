@@ -24,7 +24,7 @@ export function SetupPage({ onComplete }: { onComplete: () => void }) {
   }
   return <main className="auth-page"><section className="auth-card">
     <h1>Create administrator</h1>
-    <p>Use the setup token from the API startup logs. It expires after 15 minutes; restart the API for a new token.</p>
+    <p>Use the private setup key from the local operator command, kari-admin setup-token. It expires 15 minutes after the API starts; ask your operator to restart the API if it has expired.</p>
     {error && <p className="alert error" role="alert">{error}</p>}
     <form className="stack" onSubmit={submit}>
       <label className="field">Setup token<input type="password" autoComplete="off" required value={token} onChange={event => setToken(event.target.value)} /></label>

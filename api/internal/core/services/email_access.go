@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/irgordon/kari/api/internal/core/domain"
@@ -150,12 +149,10 @@ func (s *EmailAccess) MagicLogin(ctx context.Context, token string) (*domain.Tok
 	if err != nil {
 		return nil, nil, err
 	}
-	id := uuid.New()
-	tokens, err := s.auth.sessionTokens(user, id)
+	tokens, session, err := s.auth.prepareLogin(user)
 	if err != nil {
 		return nil, nil, err
 	}
-	session := &domain.Session{ID: id, UserID: user.ID, CredentialVersion: user.CredentialVersion, RefreshHash: refreshHash(tokens.RefreshToken), ExpiresAt: time.Now().Add(7 * 24 * time.Hour)}
 	err = s.repo.ConsumeEmailToken(ctx, refreshHash(token), "magic", uuid.Nil, "", session)
 	return tokens, user, err
 }

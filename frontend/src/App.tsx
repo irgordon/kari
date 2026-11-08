@@ -48,12 +48,12 @@ function App() {
       <Route path="/auth/email/:purpose" element={<EmailLinkPage onSignedIn={user => setSession({ configured: true, user })} onReset={() => setSession({ configured: true, user: null })} />} />
       <Route path="/setup" element={<Navigate to={session.user ? '/' : '/login?setup=complete'} replace />} />
       <Route path="/login" element={session.user ? <Navigate to="/" replace /> : <LoginPage onSignedIn={user => setSession({ configured: true, user })} />} />
-      <Route path="*" element={session.user ? <AppShell user={session.user} onSignedOut={() => setSession({ configured: true, user: null })} /> : <Navigate to="/login" replace />} />
+      <Route path="*" element={session.user ? <AppShell user={session.user} onUserChange={user => setSession({ configured:true,user })} onSignedOut={() => setSession({ configured: true, user: null })} /> : <Navigate to="/login" replace />} />
     </Routes>
   )
 }
 
-function AppShell({ user, onSignedOut }: { user: AccountUser; onSignedOut: () => void }) {
+function AppShell({ user, onSignedOut, onUserChange }: { user: AccountUser; onSignedOut: () => void; onUserChange: (user: AccountUser) => void }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   async function logout() {
@@ -112,8 +112,8 @@ function AppShell({ user, onSignedOut }: { user: AccountUser; onSignedOut: () =>
       <main className="page-main">
         {error && <p role="alert">{error}</p>}
         <Routes>
-          <Route path="/account" element={<AccountPage user={user} />} />
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/account" element={<AccountPage user={user} onUserChange={onUserChange} />} />
+          <Route path="/" element={user.mfa_required && !user.mfa_enabled ? <Navigate to="/account" replace /> : <DashboardPage />} />
           <Route path="/deployments" element={<DeploymentsPage />} />
           <Route path="/domains" element={<DomainsPage />} />
           <Route path="/roles" element={<RolesPage />} />

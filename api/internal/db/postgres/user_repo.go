@@ -42,7 +42,7 @@ func (r *UserRepo) HasPermission(ctx context.Context, userID uuid.UUID, resource
 func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	query := `
 		SELECT u.id, u.username, u.email, u.password_hash, u.is_active, u.created_at, u.updated_at,
-		       r.id, r.name, r.rank, u.email_verified_at IS NOT NULL, u.credential_version
+		       r.id, r.name, r.rank, u.email_verified_at IS NOT NULL, u.credential_version, u.mfa_secret IS NOT NULL
 		FROM users u
 		JOIN roles r ON u.role_id = r.id
 		WHERE u.id = $1
@@ -52,7 +52,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
-		&role.ID, &role.Name, &role.Rank, &user.EmailVerified, &user.CredentialVersion,
+		&role.ID, &role.Name, &role.Rank, &user.EmailVerified, &user.CredentialVersion, &user.MFAEnabled,
 	)
 
 	if err != nil {
@@ -70,7 +70,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	query := `
 		SELECT u.id, u.username, u.email, u.password_hash, u.is_active, u.created_at, u.updated_at,
-		       r.id, r.name, r.rank, u.email_verified_at IS NOT NULL, u.credential_version
+		       r.id, r.name, r.rank, u.email_verified_at IS NOT NULL, u.credential_version, u.mfa_secret IS NOT NULL
 		FROM users u
 		JOIN roles r ON u.role_id = r.id
 		WHERE u.email = $1
@@ -80,7 +80,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, 
 
 	err := r.pool.QueryRow(ctx, query, email).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
-		&role.ID, &role.Name, &role.Rank, &user.EmailVerified, &user.CredentialVersion,
+		&role.ID, &role.Name, &role.Rank, &user.EmailVerified, &user.CredentialVersion, &user.MFAEnabled,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -195,13 +195,36 @@ func (r *UserRepo) CompleteSetup(ctx context.Context, email, passwordHash string
 }
 
 func (r *UserRepo) CreateSession(ctx context.Context, session *domain.Session) error {
-	tag, err := r.pool.Exec(ctx, `INSERT INTO auth_sessions (id, user_id, refresh_hash, expires_at, credential_version)
-		SELECT $1, id, $3, $4, $5 FROM users WHERE id = $2 AND is_active AND credential_version = $5`,
-		session.ID, session.UserID, session.RefreshHash, session.ExpiresAt, session.CredentialVersion)
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
+	defer tx.Rollback(ctx)
+	if err = insertSession(ctx, tx, session); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func insertSession(ctx context.Context, tx pgx.Tx, session *domain.Session) error {
+	var id uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT id FROM users WHERE id=$1 FOR UPDATE`, session.UserID).Scan(&id); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `INSERT INTO auth_sessions (id,user_id,refresh_hash,expires_at,credential_version,mfa_pending,mfa_verified)
+		SELECT $1,id,$3,$4,$5,$6,$7 FROM users WHERE id=$2 AND is_active AND credential_version=$5
+		AND (mfa_secret IS NULL OR $6 OR $7)
+		ON CONFLICT (user_id) WHERE mfa_pending DO UPDATE SET id=EXCLUDED.id,refresh_hash=EXCLUDED.refresh_hash,
+		expires_at=EXCLUDED.expires_at,credential_version=EXCLUDED.credential_version,attempts=0,created_at=NOW(),revoked_at=NULL
+		WHERE auth_sessions.created_at <= NOW()-INTERVAL '1 minute' OR auth_sessions.expires_at<=NOW()
+		OR auth_sessions.revoked_at IS NOT NULL OR auth_sessions.credential_version!=EXCLUDED.credential_version`, session.ID, session.UserID, session.RefreshHash, session.ExpiresAt, session.CredentialVersion, session.MFAPending, session.MFAVerified)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		if session.MFAPending {
+			return domain.ErrMFAChallengeBusy
+		}
 		return domain.ErrInvalidCredentials
 	}
 	return nil
@@ -209,11 +232,11 @@ func (r *UserRepo) CreateSession(ctx context.Context, session *domain.Session) e
 
 func (r *UserRepo) FindSession(ctx context.Context, hash string) (*domain.Session, error) {
 	var session domain.Session
-	err := r.pool.QueryRow(ctx, `SELECT id, user_id, refresh_hash, expires_at, credential_version FROM auth_sessions
-		WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > NOW()
+	err := r.pool.QueryRow(ctx, `SELECT id, user_id, refresh_hash, expires_at, credential_version, mfa_verified FROM auth_sessions
+		WHERE refresh_hash = $1 AND NOT mfa_pending AND revoked_at IS NULL AND expires_at > NOW()
 		AND EXISTS (SELECT 1 FROM users u WHERE u.id = auth_sessions.user_id AND u.is_active
-		AND u.credential_version = auth_sessions.credential_version)`, hash).
-		Scan(&session.ID, &session.UserID, &session.RefreshHash, &session.ExpiresAt, &session.CredentialVersion)
+		AND u.credential_version = auth_sessions.credential_version AND (u.mfa_secret IS NULL OR auth_sessions.mfa_verified))`, hash).
+		Scan(&session.ID, &session.UserID, &session.RefreshHash, &session.ExpiresAt, &session.CredentialVersion, &session.MFAVerified)
 	if err == pgx.ErrNoRows {
 		return nil, domain.ErrInvalidCredentials
 	}
@@ -222,9 +245,9 @@ func (r *UserRepo) FindSession(ctx context.Context, hash string) (*domain.Sessio
 
 func (r *UserRepo) RotateSession(ctx context.Context, id uuid.UUID, oldHash, newHash string) error {
 	tag, err := r.pool.Exec(ctx, `UPDATE auth_sessions SET refresh_hash = $3
-		WHERE id = $1 AND refresh_hash = $2 AND revoked_at IS NULL AND expires_at > NOW()
+		WHERE id = $1 AND refresh_hash = $2 AND NOT mfa_pending AND revoked_at IS NULL AND expires_at > NOW()
 		AND EXISTS (SELECT 1 FROM users WHERE users.id = auth_sessions.user_id AND is_active
-		AND users.credential_version = auth_sessions.credential_version)`, id, oldHash, newHash)
+		AND users.credential_version = auth_sessions.credential_version AND (users.mfa_secret IS NULL OR auth_sessions.mfa_verified))`, id, oldHash, newHash)
 	if err != nil {
 		return err
 	}
@@ -249,8 +272,8 @@ func (r *UserRepo) RevokeSession(ctx context.Context, hash string, sessionID, us
 func (r *UserRepo) SessionActive(ctx context.Context, id, userID uuid.UUID) (bool, error) {
 	var active bool
 	err := r.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM auth_sessions s JOIN users u ON u.id = s.user_id
-		WHERE s.id = $1 AND s.user_id = $2 AND s.revoked_at IS NULL AND s.expires_at > NOW() AND u.is_active
-		AND s.credential_version = u.credential_version)`, id, userID).Scan(&active)
+		WHERE s.id = $1 AND s.user_id = $2 AND NOT s.mfa_pending AND s.revoked_at IS NULL AND s.expires_at > NOW() AND u.is_active
+		AND s.credential_version = u.credential_version AND (u.mfa_secret IS NULL OR s.mfa_verified))`, id, userID).Scan(&active)
 	return active, err
 }
 
@@ -342,7 +365,7 @@ func (r *UserRepo) ConsumeEmailToken(ctx context.Context, hash, purpose string, 
 	case "verify":
 		_, err = tx.Exec(ctx, `UPDATE users SET email_verified_at = NOW() WHERE id = $1`, id)
 	case "reset":
-		_, err = tx.Exec(ctx, `UPDATE users SET password_hash = $2, credential_version = credential_version + 1 WHERE id = $1`, id, passwordHash)
+		_, err = tx.Exec(ctx, `UPDATE users SET password_hash = $2, credential_version = credential_version + 1,mfa_pending_secret=NULL,mfa_pending_until=NULL WHERE id = $1`, id, passwordHash)
 		if err == nil {
 			_, err = tx.Exec(ctx, `UPDATE auth_sessions SET revoked_at = NOW() WHERE user_id = $1`, id)
 		}
@@ -353,8 +376,7 @@ func (r *UserRepo) ConsumeEmailToken(ctx context.Context, hash, purpose string, 
 		if session == nil || session.UserID != id || session.CredentialVersion != version {
 			return domain.ErrInvalidCredentials
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO auth_sessions (id, user_id, refresh_hash, expires_at, credential_version)
-			VALUES ($1, $2, $3, $4, $5)`, session.ID, id, session.RefreshHash, session.ExpiresAt, version)
+		err = insertSession(ctx, tx, session)
 	default:
 		return domain.ErrInvalidCredentials
 	}

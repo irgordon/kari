@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly ACTIVE_DOCS=(README.md DEVELOPMENT.md CONTRIBUTING.md docs/OPERATIONS.md docs/SOURCE_IDENTITY.md)
+readonly ACTIVE_DOCS=(README.md docs/DEVELOPMENT.md CONTRIBUTING.md docs/OPERATIONS.md docs/SOURCE_IDENTITY.md)
 
 main() {
   verify_required_references
@@ -53,10 +53,12 @@ verify_make_commands() {
 }
 
 verify_markdown_links() {
-  local path
-  while IFS= read -r path; do
-    [[ -e "$ROOT_DIR/$path" ]] || fail "documented relative link does not exist: $path"
-  done < <(extract_docs | sed -n 's/.*](\([^):#?]*\)).*/\1/p' | grep -v '^$' | sort -u)
+  local document path
+  for document in "${ACTIVE_DOCS[@]}"; do
+    while IFS= read -r path; do
+      [[ -e "$ROOT_DIR/$(dirname "$document")/$path" ]] || fail "$document: documented relative link does not exist: $path"
+    done < <(sed -n 's/.*](\([^):#?]*\)).*/\1/p' "$ROOT_DIR/$document" | grep -v '^$' | sort -u)
+  done
 }
 
 require_text() {

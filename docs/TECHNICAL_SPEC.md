@@ -145,8 +145,9 @@ this specification does not certify its race safety.
 First-run setup requires a short-lived operator capability and creates the
 administrator and permanent installation marker together in PostgreSQL. Setup
 completion must survive restarts and prevent competing or repeated installation.
-The setup capability is supplied through operator-only startup logs and must
-not appear in URLs or public API responses. Deployment secrets remain operator
+The setup capability is generated into private operator configuration and retrieved
+through the local administrator command. It must not appear in logs, URLs, or
+public API responses. Deployment secrets remain operator
 configuration, not browser-written environment files.
 
 The session design uses short-lived access JWTs tied to database sessions and
@@ -167,8 +168,17 @@ explicitly trusted proxy peers. Limiter state is bounded and idle entries expire
 health probes remain independent of user traffic. This is not distributed or
 per-account abuse protection.
 
-Account recovery and broader authentication/authorization hardening remain
-separate work. Successful build or browser checks do not certify production security.
+Authenticator secrets are encrypted with account-bound associated data. Pending
+MFA sessions cannot access APIs or renew credentials. Password and magic-link
+sign-in require the same second-factor completion; email password reset does not
+remove it. TOTP time steps and recovery codes are single-use. Local emergency
+recovery is restricted to the root operator and revokes old credentials.
+
+The supported installer targets Ubuntu 24.04, stages checksummed versioned
+artifacts, and retains the previous release. Existing-schema migration requires a
+verified backup. Unknown/newer or modified migration history is rejected. Restore
+must pair executable/images, database state, and configuration. Broader tenant
+isolation and privileged-agent hardening remain separate release gates.
 
 ## 10. Repository and Verification Authorities
 

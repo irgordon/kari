@@ -1,6 +1,6 @@
 export type ApiPath = `/api/v1/${string}`
 
-export interface AccountUser { id: string; email: string; email_verified: boolean }
+export interface AccountUser { id: string; email: string; email_verified: boolean; mfa_enabled: boolean; mfa_required: boolean }
 
 export class ApiError extends Error {
   status: number
@@ -41,7 +41,7 @@ async function request<TResponse>(
     await new Promise(resolve => window.setTimeout(resolve, 1000))
     response = await fetch(path, options)
   }
-  if (response.status === 401 && !path.startsWith('/api/v1/setup/') && !['/api/v1/auth/login', '/api/v1/auth/refresh', '/api/v1/auth/logout'].includes(path)) {
+  if (response.status === 401 && !path.startsWith('/api/v1/setup/') && !['/api/v1/auth/login', '/api/v1/auth/refresh', '/api/v1/auth/logout', '/api/v1/auth/mfa/complete'].includes(path)) {
     // Coordinate tabs on secure origins and share pending renewal within this tab.
     refresh ??= (navigator.locks ? navigator.locks.request('kari-session-refresh', renewSession) : renewSession()).finally(() => { refresh = null })
     const renewal = await refresh

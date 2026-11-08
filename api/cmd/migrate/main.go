@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 
@@ -18,6 +19,8 @@ func main() {
 }
 
 func runMigration() error {
+	check := flag.Bool("check", false, "validate schema compatibility without changing it")
+	flag.Parse()
 	databaseURL, err := requiredDatabaseURL()
 	if err != nil {
 		return err
@@ -27,6 +30,22 @@ func runMigration() error {
 		return err
 	}
 	defer pool.Close()
+	version, err := karidb.SchemaVersion(context.Background(), pool)
+	if err != nil {
+		return err
+	}
+	plan, err := karidb.LoadMigrationPlan()
+	if err != nil {
+		return err
+	}
+	if *check {
+		return nil
+	}
+	if version > 0 && version < len(plan) {
+		if err = karidb.CheckMigrationBackup(os.Getenv("KARI_MIGRATION_BACKUP"), version); err != nil {
+			return err
+		}
+	}
 	return karidb.Migrate(context.Background(), pool)
 }
 

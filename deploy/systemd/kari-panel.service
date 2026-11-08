@@ -1,0 +1,14 @@
+[Unit]
+Description=Kari panel containers
+After=docker.service kari-agent.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=180
+ExecStart=/opt/kari/current/kari-admin start --root /opt/kari
+ExecStop=/opt/kari/current/kari-admin stop --root /opt/kari
+
+[Install]
+WantedBy=multi-user.target

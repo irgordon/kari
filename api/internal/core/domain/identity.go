@@ -9,6 +9,7 @@ import (
 )
 
 var ErrConflict = errors.New("setup is already complete")
+var ErrMFAChallengeBusy = errors.New("finish the existing MFA challenge or wait one minute before starting a new sign-in")
 
 type contextKey string
 
@@ -19,6 +20,7 @@ type UserClaims struct {
 	Subject     uuid.UUID
 	Permissions []string
 	SessionID   uuid.UUID
+	MFAVerified bool
 }
 
 type User struct {
@@ -26,6 +28,9 @@ type User struct {
 	Username          string    `json:"username"`
 	Email             string    `json:"email"`
 	EmailVerified     bool      `json:"email_verified"`
+	MFAEnabled        bool      `json:"mfa_enabled"`
+	MFAVerified       bool      `json:"-"`
+	MFARequired       bool      `json:"mfa_required"`
 	CredentialVersion int       `json:"-"`
 	PasswordHash      string    `json:"-"`
 	IsActive          bool      `json:"is_active"`
@@ -63,6 +68,8 @@ type AuthService interface {
 }
 
 type Session struct {
+	MFAPending        bool
+	MFAVerified       bool
 	CredentialVersion int
 	ID                uuid.UUID
 	UserID            uuid.UUID
@@ -84,6 +91,7 @@ type RoleService interface {
 }
 
 type TokenPair struct {
+	MFAChallenge string
 	AccessToken  string
 	RefreshToken string
 }

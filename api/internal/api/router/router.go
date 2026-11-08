@@ -16,6 +16,7 @@ import (
 
 	"github.com/irgordon/kari/api/internal/api/handlers"
 	auth_middleware "github.com/irgordon/kari/api/internal/api/middleware"
+	"github.com/irgordon/kari/api/internal/core/domain"
 )
 
 // RouterConfig defines the strict dependencies required to build the API routing tree.
@@ -111,9 +112,16 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		// ---------------------------------------------------------------------
 		r.Group(func(r chi.Router) {
 			r.Post("/auth/login", cfg.AuthHandler.Login)
+			r.Post("/auth/mfa/begin", cfg.AuthHandler.MFAAction)
+			r.Post("/auth/mfa/enable", cfg.AuthHandler.MFAAction)
+			r.Post("/auth/mfa/disable", cfg.AuthHandler.MFAAction)
+			r.Post("/auth/mfa/complete", cfg.AuthHandler.MFAAction)
 			r.Post("/auth/refresh", cfg.AuthHandler.Refresh)
 			r.Post("/auth/logout", cfg.AuthHandler.Logout)
 			r.Get("/auth/me", cfg.AuthHandler.Me)
+			if cfg.SetupHandler != nil {
+				r.Get("/auth/onboarding", cfg.SetupHandler.Onboarding)
+			}
 			if cfg.EmailHandler != nil {
 				r.Get("/auth/email/status", cfg.EmailHandler.Status)
 				r.Post("/auth/email/request", cfg.EmailHandler.Request)
@@ -133,6 +141,18 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		// ---------------------------------------------------------------------
 		r.Group(func(r chi.Router) {
 			r.Use(cfg.AuthMiddleware.RequireAuthentication)
+			r.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if cfg.AuthHandler.SecureCookies {
+						claims, _ := r.Context().Value(domain.UserContextKey).(*domain.UserClaims)
+						if claims == nil || !claims.MFAVerified {
+							http.Error(w, `{"message":"Complete MFA enrollment and sign in with your authenticator first"}`, http.StatusForbidden)
+							return
+						}
+					}
+					next.ServeHTTP(w, r)
+				})
+			})
 
 			// --- Mutating Method Guard (Stateless RBAC) ---
 			// 🛡️ Zero-Trust: Even if a specific route forgets a RequirePermission check,

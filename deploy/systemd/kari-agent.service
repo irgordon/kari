@@ -2,12 +2,12 @@
 Description=Kari privileged host agent
 After=network-online.target
 Wants=network-online.target
-ConditionPathIsExecutable=/usr/local/libexec/kari/kari-agent
+ConditionFileIsExecutable=/usr/local/libexec/kari/kari-agent
 
 [Service]
 Type=simple
 User=root
-Group=root
+Group=kari-api
 EnvironmentFile=/etc/kari/agent.env
 ExecStart=/usr/local/libexec/kari/kari-agent
 Restart=on-failure

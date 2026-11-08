@@ -1,5 +1,7 @@
 # Kari development
 
+Run the commands below from the repository root.
+
 Install the exact versions in `toolchain.env`, start Docker, and run:
 
 ```bash
@@ -37,4 +39,4 @@ make compose-up
 ```
 
 The development topology does not launch the native agent. See
-[docs/OPERATIONS.md](docs/OPERATIONS.md) for the Linux systemd boundary.
+[OPERATIONS.md](OPERATIONS.md) for the Linux systemd boundary.

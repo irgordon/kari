@@ -2,10 +2,10 @@
 
 ## Environment setup
 
-Create the Compose environment file:
+Generate a new private local development environment (existing files are never overwritten):
 
 ```bash
-cp .env.example .env
+go run ./api/cmd/kari-admin init --development --public-url http://localhost:3000 --output .env
 ```
 
 Development values are intentionally marked as non-production. Production must
@@ -75,10 +75,11 @@ setup form creates only the administrator; it does not rewrite deployment secret
 database URLs, or environment files. Development permits a fixed all-zero encryption
 key when `ENCRYPTION_KEY` is empty; never use this fallback in production.
 
-After `make compose-up`, open the frontend and retrieve the setup token with
-`./scripts/compose.sh logs api`. Treat API logs as operator-only: the bootstrap
-capability expires in 15 minutes and becomes unusable after setup commits. Restart
-an incomplete API with `./scripts/compose.sh restart api` for a new token. Setup
+After `make compose-up`, open the frontend and retrieve `KARI_SETUP_TOKEN` from
+the private environment file. Production operators use `kari-admin setup-token`.
+The key is never printed in API logs. It expires 15 minutes after API startup and
+becomes unusable after setup commits. Restart an incomplete API with
+`./scripts/compose.sh restart api` to restart its validity period. Setup
 completion persists in PostgreSQL across API/container restarts, independently of
 the former `setup.lock` file. Existing databases with users are treated as configured.
 The forward migration preserves existing users and password hashes. Legacy refresh
@@ -144,5 +145,111 @@ durable across API restarts; users must request another link if needed. Existing
 unexpired links remain redeemable if new email delivery is disabled.
 
 Confirm actual inbox delivery with your SMTP provider before relying on email
-recovery. Administrator MFA, offline emergency recovery, and installation/upgrade
-safety remain separate P1 work; email links do not provide MFA.
+recovery. Email links are a first factor, not MFA.
+
+## Supported installation
+
+Use Ubuntu 24.04 on a dedicated server with rootful Docker Engine 24+, Compose
+2.20+, Nginx, systemd, and free UID/GID 1001. Install those OS prerequisites first.
+The installer refuses another distribution, an existing installation, occupied
+service identities, or pre-existing service/configuration files.
+
+Build a release with `./scripts/build-release.sh VERSION`. It uses digest-pinned
+builders and the existing locks, packages actual Linux binaries and images, and
+records their SHA-256 checksums, schema head, architecture, and source Git tree.
+Source changes during a build abort publication of the local manifest. No Git tag
+or remote release is created. A manifest checksum must come from a trusted source;
+checksums bundled with an untrusted download do not establish provenance.
+
+Transfer the directory intact. Verify `manifest.json` before running its binary.
+Provide a hostname-matching, currently valid certificate and private key; this
+installer does not obtain certificates from a public CA automatically.
+
+```bash
+sudo ./kari-admin install --bundle /root/kari-release --manifest-sha256 TRUSTED_SHA256 --public-url https://panel.example.com --tls-cert /root/panel.crt --tls-key /root/panel.key
+sudo /opt/kari/current/kari-admin setup-token
+```
+
+The default installation is `/opt/kari`, mode 0700. The environment file is mode
+0600; generated database, JWT, encryption, and setup secrets are independent.
+The agent runs natively as root with the API group for socket traversal. API and
+frontend HTTP ports bind to loopback. Host Nginx terminates HTTPS and overwrites
+the client-IP header; frontend Nginx trusts only the installation's host gateway.
+`kari-panel.service` restarts the containers after reboot. Use the generated
+environment and installer-managed gateway together; manually changing subnets
+requires reviewing both proxy trust configurations.
+
+Open the HTTPS panel, create the administrator, then use **Account**. The checklist
+reports database, native-agent, HTTPS, email, and MFA state separately. Development
+can omit the agent, but its disconnected state remains visible. SMTP credentials
+are configured in `/opt/kari/.env.production`; use `kari-admin restart` afterward.
+
+## MFA and emergency access
+
+Enroll an authenticator from **Account** with your current password. The pending
+key expires in ten minutes. Confirm a current code and download the ten recovery
+codes immediately: only their hashes remain in the database. Enrollment revokes
+old sessions. Login challenges expire in five minutes, permit five attempts, and
+cannot authorize API access or refresh a session. New challenges have an account
+cooldown; TOTP time steps and recovery codes cannot be replayed. Password and magic
+sign-in both complete the second factor before receiving a full session. Password
+reset retains MFA. Production workload management is blocked without verified MFA.
+
+If email and the authenticator are unavailable, the local root operator can recover
+an existing administrator. Place the replacement password in a root-owned mode-0600
+file using a secure editor; do not put it in shell arguments, history, or logs.
+
+```bash
+sudo /opt/kari/current/kari-admin recover --email owner@example.com --confirm owner@example.com --password-file /root/new-password --reset-mfa
+```
+
+Omit `--reset-mfa` to preserve the authenticator. This command stops the API,
+changes credentials transactionally, revokes sessions and email links, and restarts
+the API. It is not an HTTP/RPC endpoint. Securely remove the password file after
+storing the replacement credentials. Enroll a new factor before resuming production
+management. Recovery cannot decrypt data if the encryption key has been lost.
+
+## Backups, upgrades, and restoration
+
+```bash
+sudo /opt/kari/current/kari-admin backup
+sudo /opt/kari/current/kari-admin upgrade --bundle /root/kari-next --manifest-sha256 TRUSTED_NEXT_SHA256
+```
+
+Backups quiesce the API and capture the control-plane database, private environment,
+agent configuration, TLS material, and proxy configuration. The backup records the
+matching release and checksums. Backups are root-only and contain secrets. Copy
+them and the matching release off-host through a protected channel. Customer site
+files/databases, scheduling, retention, and encrypted off-host policy are separate
+P2/P4 capabilities.
+
+Upgrade preflight rejects incompatible migration history and unsupported
+downgrades. A real database backup is mandatory before advancing an existing
+schema. Migration is transactional. The previous release and backup remain in
+place. A failed upgrade returns nonzero and keeps management stopped when the
+state cannot safely resume; do not manually start an older API against a newer
+database. The API itself rejects a schema that does not match its release.
+
+Restore deliberately replaces the control-plane database and configuration:
+
+```bash
+sudo /opt/kari/current/kari-admin restore --backup /opt/kari/backups/BACKUP_DIRECTORY --confirm PREVIOUS_VERSION
+```
+
+The backup must be inside the protected backups directory, its files must pass
+checksums, and the retained release must match its schema. Restoration uses the
+previous executable/images and database snapshot together. Restoration
+does not revive sessions or consumed capabilities: restore revokes all sessions,
+email links, and saved recovery codes, rotates the JWT signing secret, and retains
+the enrolled authenticator. Sign in with the authenticator and re-enroll to obtain
+fresh offline codes, or use local root recovery if the factor was lost. Review
+and rotate account passwords as appropriate for the recovery event. A restore failure
+leaves management stopped and returns nonzero; repair the cause and retry the same
+verified backup. This is same-host upgrade recovery. Replacement-host disaster
+recovery still requires provisioning with the original credentials and matching
+release; it is not certified by the same-host rehearsal.
+
+For failures, inspect `systemctl status kari-agent kari-panel`, Nginx validation,
+and Compose service health. A partial first installation retains its private
+configuration for inspection; do not rerun installation over it or delete volumes
+to hide a failure. No installer changes an existing owner's installation silently.

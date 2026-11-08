@@ -20,6 +20,10 @@ load_versions() {
 
 resolve_platform() {
   case "$(uname -s)-$(uname -m)" in
+    Linux-aarch64|Linux-arm64)
+      ARCHIVE_NAME="protoc-${PROTOC_VERSION}-linux-aarch_64.zip"
+      ARCHIVE_SHA256="$PROTOC_LINUX_ARM64_SHA256"
+      ;;
     Linux-x86_64)
       ARCHIVE_NAME="protoc-${PROTOC_VERSION}-linux-x86_64.zip"
       ARCHIVE_SHA256="$PROTOC_LINUX_X86_64_SHA256"

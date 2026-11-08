@@ -6,9 +6,12 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -32,6 +35,54 @@ type Migration struct {
 	Name     string
 	SQL      string
 	Checksum string
+}
+
+type BackupProof struct {
+	SchemaVersion int               `json:"schema_version"`
+	Version       string            `json:"version"`
+	Files         map[string]string `json:"files"`
+}
+
+func CheckMigrationBackup(path string, schema int) error {
+	if path == "" {
+		return errors.New("an existing database upgrade requires a verified control-plane backup; use kari-admin upgrade")
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Size() > 65536 {
+		return errors.New("invalid backup proof file")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var proof BackupProof
+	if err = json.Unmarshal(data, &proof); err != nil {
+		return err
+	}
+	if proof.SchemaVersion != schema || proof.Files["database.dump"] == "" {
+		return errors.New("backup does not match the installed database schema")
+	}
+	dump := filepath.Join(filepath.Dir(path), "database.dump")
+	info, err = os.Lstat(dump)
+	if err != nil || !info.Mode().IsRegular() {
+		return errors.New("backup database dump is missing or unsafe")
+	}
+	file, err := os.Open(dump)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err = io.Copy(hash, file); err != nil {
+		return err
+	}
+	if hex.EncodeToString(hash.Sum(nil)) != proof.Files["database.dump"] {
+		return errors.New("backup database dump checksum mismatch")
+	}
+	return nil
 }
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
@@ -75,6 +126,13 @@ func applyMigrationsAtomically(ctx context.Context, connection *pgx.Conn, plan [
 	if err := ensureMigrationTable(ctx, transaction); err != nil {
 		return err
 	}
+	rows, err := transaction.Query(ctx, "SELECT version,name,checksum FROM schema_migrations ORDER BY version")
+	if err != nil {
+		return err
+	}
+	if _, err = validateAppliedRows(rows, plan); err != nil {
+		return err
+	}
 	if err := applyPendingMigrations(ctx, transaction, plan); err != nil {
 		return err
 	}
@@ -82,6 +140,44 @@ func applyMigrationsAtomically(ctx context.Context, connection *pgx.Conn, plan [
 		return fmt.Errorf("commit migration transaction: %w", err)
 	}
 	return nil
+}
+
+// SchemaVersion rejects unknown, reordered, and modified history, including
+// databases created by a newer executable. It never changes the database.
+func SchemaVersion(ctx context.Context, pool *pgxpool.Pool) (int, error) {
+	plan, err := LoadMigrationPlan()
+	if err != nil {
+		return 0, err
+	}
+	var table *string
+	if err = pool.QueryRow(ctx, "SELECT to_regclass('schema_migrations')::text").Scan(&table); err != nil {
+		return 0, err
+	}
+	if table == nil {
+		return 0, nil
+	}
+	rows, err := pool.Query(ctx, "SELECT version,name,checksum FROM schema_migrations ORDER BY version")
+	if err != nil {
+		return 0, err
+	}
+	return validateAppliedRows(rows, plan)
+}
+
+func validateAppliedRows(rows pgx.Rows, plan []Migration) (int, error) {
+	defer rows.Close()
+	count := 0
+	for rows.Next() {
+		var version int64
+		var name, checksum string
+		if err := rows.Scan(&version, &name, &checksum); err != nil {
+			return 0, err
+		}
+		if count >= len(plan) || version != plan[count].Version || name != plan[count].Name || checksum != plan[count].Checksum {
+			return 0, fmt.Errorf("database migration %d is incompatible with this executable; restore matching application and database versions", version)
+		}
+		count++
+	}
+	return count, rows.Err()
 }
 
 func applyPendingMigrations(ctx context.Context, transaction pgx.Tx, plan []Migration) error {

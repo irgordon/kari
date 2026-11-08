@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, createHmac, randomBytes } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 const email = 'owner@example.test'
@@ -182,6 +182,50 @@ test.describe('email capability confirmation', () => {
     await page.getByLabel('Email address').fill(email)
     await page.getByLabel('Password', { exact: true }).fill('Replacement-Password-84!')
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+  })
+
+  test('MFA enrollment and recovery protect password and magic-link sign-in', async ({ page }) => {
+    const compose = fileURLToPath(new URL('../../scripts/compose.sh', import.meta.url))
+    const container = execFileSync(compose, ['ps', '-q', 'db'], { encoding: 'utf8' }).trim()
+    const sql = (input: string) => execFileSync('docker', ['exec', '-i', container, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'kari', '-d', 'kari'], { input, stdio: ['pipe', 'ignore', 'pipe'] })
+    sql(`UPDATE users SET password_hash=crypt('${password}', gen_salt('bf')), credential_version=credential_version+1, email_verified_at=NOW() WHERE email='${email}';`)
+    await signIn(page)
+    await page.goto('/account')
+    await page.getByLabel('Current password').fill(password)
+    await page.getByRole('button', { name: 'Set up MFA', exact: true }).click()
+    const secret = await page.locator('code').first().innerText()
+    // Independent RFC 6238 fixture calculation; production uses the pinned OTP library.
+    let bits = ''
+    for (const character of secret) bits += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(character).toString(2).padStart(5, '0')
+    const key = Buffer.from(bits.match(/.{8}/g)!.map(value => parseInt(value, 2)))
+    const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)))
+    const digest = createHmac('sha1', key).update(counter).digest()
+    const offset = digest[digest.length - 1] & 15
+    const code = ((digest.readUInt32BE(offset) & 0x7fffffff) % 1000000).toString().padStart(6, '0')
+    await page.getByLabel('Authenticator code', { exact: true }).fill(code)
+    await page.getByRole('button', { name: 'Confirm authenticator', exact: true }).click()
+    const recovery = (await page.locator('pre').innerText()).trim().split('\n')
+    expect(recovery).toHaveLength(10)
+    await page.getByRole('button', { name: 'I saved my codes' }).click()
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click()
+    await page.getByLabel('Email address').fill(email)
+    await page.getByLabel('Password', { exact: true }).fill(password)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0)
+    await page.getByLabel('Authenticator or recovery code').fill(recovery[0])
+    await page.getByRole('button', { name: 'Verify code', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+    const token = randomBytes(32).toString('base64url')
+    const hash = createHash('sha256').update(token).digest('hex')
+    sql(`INSERT INTO account_email_tokens(user_id,purpose,token_hash,credential_version,expires_at) SELECT id,'magic','${hash}',credential_version,NOW()+INTERVAL '15 minutes' FROM users WHERE email='${email}' ON CONFLICT(user_id,purpose) DO UPDATE SET token_hash=EXCLUDED.token_hash, credential_version=EXCLUDED.credential_version, consumed_at=NULL, expires_at=EXCLUDED.expires_at;`)
+    await page.goto(`/auth/email/magic#token=${token}`)
+    await page.getByRole('button', { name: 'Confirm sign-in', exact: true }).click()
+    await page.getByLabel('Authenticator or recovery code').fill(recovery[0])
+    await page.getByRole('button', { name: 'Verify code', exact: true }).click()
+    await expect(page.getByRole('alert')).toContainText('Invalid credentials')
+    await page.getByLabel('Authenticator or recovery code').fill(recovery[1])
+    await page.getByRole('button', { name: 'Verify code', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
   })
 })

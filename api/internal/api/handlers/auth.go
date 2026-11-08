@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/irgordon/kari/api/internal/core/domain"
+	"github.com/irgordon/kari/api/internal/core/services"
 )
 
 type LoginRequest struct {
@@ -17,6 +18,7 @@ type LoginRequest struct {
 type AuthHandler struct {
 	Service       domain.AuthService
 	SecureCookies bool
+	MFA           *services.MFAService
 }
 
 func NewAuthHandler(service domain.AuthService, secureCookies bool) *AuthHandler {
@@ -35,6 +37,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.setAuthCookies(w, tokens)
+	if tokens.MFAChallenge != "" {
+		writeJSON(w, 200, map[string]bool{"mfa_required": true})
+		return
+	}
+	user.MFARequired = h.SecureCookies
 	writeJSON(w, 200, map[string]interface{}{"user": user})
 }
 
@@ -65,6 +72,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		h.authError(w, err)
 		return
 	}
+	user.MFARequired = h.SecureCookies
 	writeJSON(w, 200, map[string]interface{}{"user": user})
 }
 
@@ -85,6 +93,11 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) authError(w http.ResponseWriter, err error) {
+	if errors.Is(err, domain.ErrMFAChallengeBusy) {
+		w.Header().Set("Retry-After", "60")
+		writeJSON(w, 429, map[string]string{"message": err.Error()})
+		return
+	}
 	if errors.Is(err, domain.ErrInvalidCredentials) || errors.Is(err, domain.ErrNotFound) {
 		writeJSON(w, 401, map[string]string{"message": "Invalid credentials or expired session"})
 		return
@@ -93,6 +106,12 @@ func (h *AuthHandler) authError(w http.ResponseWriter, err error) {
 }
 
 func (h *AuthHandler) setAuthCookies(w http.ResponseWriter, tokens *domain.TokenPair) {
+	if tokens.MFAChallenge != "" {
+		h.clearAuthCookies(w)
+		http.SetCookie(w, &http.Cookie{Name: "kari_mfa_challenge", Value: tokens.MFAChallenge, Path: "/api/v1/auth", MaxAge: 300, HttpOnly: true, Secure: h.SecureCookies, SameSite: http.SameSiteStrictMode})
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: "kari_mfa_challenge", Path: "/api/v1/auth", MaxAge: -1, HttpOnly: true, Secure: h.SecureCookies, SameSite: http.SameSiteStrictMode})
 	for _, cookie := range []*http.Cookie{
 		{Name: "kari_access_token", Value: tokens.AccessToken, Path: "/", Expires: time.Now().Add(15 * time.Minute)},
 		{Name: "kari_refresh_token", Value: tokens.RefreshToken, Path: "/api/v1/auth", Expires: time.Now().Add(7 * 24 * time.Hour)},
@@ -106,10 +125,71 @@ func (h *AuthHandler) setAuthCookies(w http.ResponseWriter, tokens *domain.Token
 }
 
 func (h *AuthHandler) clearAuthCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{Name: "kari_mfa_challenge", Path: "/api/v1/auth", MaxAge: -1, HttpOnly: true, Secure: h.SecureCookies, SameSite: http.SameSiteStrictMode})
 	for name, path := range map[string]string{"kari_access_token": "/", "kari_refresh_token": "/api/v1/auth"} {
 		http.SetCookie(w, &http.Cookie{Name: name, Path: path, MaxAge: -1, Expires: time.Unix(0, 0),
 			HttpOnly: true, Secure: h.SecureCookies, SameSite: http.SameSiteStrictMode})
 	}
 	http.SetCookie(w, &http.Cookie{Name: "kari_refresh_token", Path: "/api/v1/auth/refresh", MaxAge: -1,
 		HttpOnly: true, Secure: h.SecureCookies, SameSite: http.SameSiteStrictMode})
+}
+
+func (h *AuthHandler) MFAAction(w http.ResponseWriter, r *http.Request) {
+	if h.MFA == nil {
+		writeJSON(w, 503, map[string]string{"message": "MFA is unavailable"})
+		return
+	}
+	var req struct {
+		Password string `json:"password"`
+		Code     string `json:"code"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		writeJSON(w, 400, map[string]string{"message": "Invalid MFA request"})
+		return
+	}
+	if r.URL.Path == "/api/v1/auth/mfa/complete" {
+		cookie, err := r.Cookie("kari_mfa_challenge")
+		if err != nil {
+			h.authError(w, domain.ErrInvalidCredentials)
+			return
+		}
+		tokens, user, err := h.MFA.Complete(r.Context(), cookie.Value, req.Code)
+		if err != nil {
+			h.authError(w, err)
+			return
+		}
+		h.setAuthCookies(w, tokens)
+		user.MFARequired = h.SecureCookies
+		writeJSON(w, 200, map[string]interface{}{"user": user})
+		return
+	}
+	cookie, err := r.Cookie("kari_access_token")
+	if err != nil {
+		h.authError(w, domain.ErrInvalidCredentials)
+		return
+	}
+	user, err := h.Service.CurrentUser(r.Context(), cookie.Value)
+	if err != nil {
+		h.authError(w, err)
+		return
+	}
+	if r.URL.Path == "/api/v1/auth/mfa/begin" {
+		enrollment, err := h.MFA.Begin(r.Context(), user, req.Password)
+		if err != nil {
+			h.authError(w, err)
+			return
+		}
+		writeJSON(w, 200, enrollment)
+		return
+	}
+	enable := r.URL.Path == "/api/v1/auth/mfa/enable"
+	tokens, codes, err := h.MFA.Change(r.Context(), user, req.Password, req.Code, enable)
+	if err != nil {
+		h.authError(w, err)
+		return
+	}
+	h.setAuthCookies(w, tokens)
+	user.MFAEnabled = enable
+	user.MFARequired = h.SecureCookies
+	writeJSON(w, 200, map[string]interface{}{"user": user, "recovery_codes": codes})
 }

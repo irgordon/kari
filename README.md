@@ -20,6 +20,7 @@ authentication, deployment state, or the privileged RPC surface is production-re
 | Docker Compose | 2.20.0 or newer |
 
 GNU Make, Bash, curl, unzip, Git, and jq are also required. The machine running
+browser verification also needs OpenSSL for its disposable setup key. The machine running
 verification must have a working Docker daemon. `toolchain.env` is the version
 authority consumed by scripts, CI, and container builds.
 
@@ -70,7 +71,7 @@ as an ordinary container.
 ## Development startup
 
 ```bash
-cp .env.example .env
+go run ./api/cmd/kari-admin init --development --public-url http://localhost:3000 --output .env
 make compose-up
 curl --fail http://localhost:8080/health
 curl --fail http://localhost:8080/ready
@@ -82,10 +83,10 @@ development environment sets `KARI_REQUIRE_AGENT=false`; readiness therefore
 proves the database/API boundary but does not claim a running privileged agent.
 
 Open `http://localhost:3000`. On first run, Kari opens administrator setup.
-Read the one-time setup token from the API startup logs with
-`./scripts/compose.sh logs api`, enter it with your email and a strong password,
-then sign in. The token expires after 15 minutes; `./scripts/compose.sh restart api`
-issues a new token only while setup is incomplete. Setup commits the administrator
+Read the private setup key from your protected environment file, enter it with
+your email and a strong password, then sign in. Production operators retrieve it
+with `sudo /opt/kari/current/kari-admin setup-token`. Keys expire 15 minutes after
+API startup; the operator can restart the API if setup has not completed. Setup commits the administrator
 and a permanent completion marker together in PostgreSQL and needs no restart.
 
 Session cookies are HttpOnly. Refresh tokens rotate on use and expire after seven
@@ -104,10 +105,35 @@ agent probe in addition to PostgreSQL.
 
 ## Production boundary
 
-Production installation is limited to the native-agent unit and the same Compose
-topology. Copy `.env.example` to a protected deployment environment file, replace
-all development values, set `KARI_ENV=production`, set `KARI_REQUIRE_AGENT=true`,
-and set `KARI_AGENT_SOCKET_DIR=/run/kari`.
+The supported host is a dedicated Ubuntu 24.04 server with rootful Docker,
+Compose, Nginx, systemd, and UID/GID 1001 available. Provide a valid TLS certificate
+and root-owned mode-0600 private key for the panel hostname. The installer creates
+private credentials, installs the native agent and panel services, binds internal
+HTTP ports to loopback, and configures the HTTPS proxy.
+
+Build an immutable, versioned local release from the pinned toolchains:
+
+```bash
+./scripts/build-release.sh 1.2.0-rc.1
+```
+
+This creates `.artifacts/releases/1.2.0-rc.1/` and prints its manifest SHA-256.
+The version is an example, not a published release. Transfer the bundle through
+a trusted channel and verify its checksum before executing its administrator binary.
+
+```bash
+sudo ./kari-admin install --bundle /root/kari-release --manifest-sha256 TRUSTED_SHA256 --public-url https://panel.example.com --tls-cert /root/panel.crt --tls-key /root/panel.key
+sudo /opt/kari/current/kari-admin setup-token
+```
+
+Create the administrator in the browser, then open **Account** to complete email
+verification and authenticator enrollment. Production management requires a
+verified MFA session. Save the one-time recovery codes offline. Password reset
+and magic-link login retain the authenticator requirement.
+
+Upgrades reject downgrades, validate migration history, and take a control-plane
+backup before migration. If the new release fails, restore matching application,
+database, keys, and configuration using the procedure in the operations guide.
 
 The native unit is [deploy/systemd/kari-agent.service](deploy/systemd/kari-agent.service),
 with its environment template at
@@ -118,8 +144,7 @@ installation and database operations are in [docs/OPERATIONS.md](docs/OPERATIONS
 
 This milestone does not repair or certify:
 
-1. Account recovery and authentication/authorization hardening beyond the tested
-   first-run and session lifecycle.
+1. Broader authorization, tenant-isolation, and privileged-operation hardening.
 2. Deployment state transitions, recovery, or terminal outcomes.
 3. The breadth or hardening of the privileged-agent RPC surface.
 
@@ -133,7 +158,8 @@ statically. It does not execute privileged Linux host mutations.
 - [Operations](docs/OPERATIONS.md)
 - [Agent API](docs/AGENT_API.md)
 - [Provider interfaces](docs/PROVIDERS.md)
-- [Development](DEVELOPMENT.md)
+- [Development](docs/DEVELOPMENT.md)
+- [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
 Historical audits and superseded drafts are retained under `docs/archive/` and

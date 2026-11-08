@@ -17,7 +17,7 @@ verify_browser_journey() {
   local frontend_port
   frontend_port="$(wait_for_service_port frontend 8080)"
   export KARI_E2E_URL="http://127.0.0.1:${frontend_port}"
-  KARI_E2E_SETUP_TOKEN="$("$ROOT_DIR/scripts/compose.sh" logs --no-log-prefix api | jq --raw-input --raw-output 'fromjson? | .setup_token // empty')"
+  KARI_E2E_SETUP_TOKEN="$KARI_SETUP_TOKEN"
   export KARI_E2E_SETUP_TOKEN
   [[ -n "$KARI_E2E_SETUP_TOKEN" ]] || fail "fresh API did not issue a setup capability"
   (
@@ -40,6 +40,7 @@ configure_smoke_environment() {
   export KARI_REQUIRE_AGENT=false
   export KARI_API_PORT=0
   export KARI_FRONTEND_PORT=0
+  export KARI_SETUP_TOKEN="$(openssl rand -hex 32)"
 }
 
 start_topology() {

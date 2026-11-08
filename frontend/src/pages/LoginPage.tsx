@@ -7,6 +7,7 @@ import type { AccountUser } from '../lib/api'
 interface LoginResponse {
   message?: string
   user: AccountUser
+  mfa_required?: boolean
 }
 
 export function LoginPage({ onSignedIn }: { onSignedIn: (user: LoginResponse['user']) => void }) {
@@ -19,6 +20,8 @@ export function LoginPage({ onSignedIn }: { onSignedIn: (user: LoginResponse['us
   const [method, setMethod] = useState<'password' | 'magic' | 'reset'>('password')
   const [emailEnabled, setEmailEnabled] = useState(false)
   const [notice, setNotice] = useState('')
+  const [mfa, setMfa] = useState(new URLSearchParams(location.search).get('mfa') === '1')
+  const [code, setCode] = useState('')
   useEffect(() => {
     void apiGet<{ enabled: boolean }>('/api/v1/auth/email/status').then(data => setEmailEnabled(data.enabled)).catch(() => setEmailEnabled(false))
   }, [])
@@ -33,6 +36,10 @@ export function LoginPage({ onSignedIn }: { onSignedIn: (user: LoginResponse['us
     setError(null)
 
     try {
+      if (mfa) {
+        const result = await apiPost<object, LoginResponse>('/api/v1/auth/mfa/complete', { code })
+        setCode(''); onSignedIn(result.user); navigate('/', { replace: true }); return
+      }
       if (method !== 'password') {
         const result = await apiPost<{ email: string; purpose: string }, { message: string }>('/api/v1/auth/email/request', { email, purpose: method })
         setNotice(result.message)
@@ -42,9 +49,10 @@ export function LoginPage({ onSignedIn }: { onSignedIn: (user: LoginResponse['us
         '/api/v1/auth/login',
         { email, password },
       )
+      if (result.mfa_required) { setPassword(''); setMfa(true); return }
       setPassword('')
       onSignedIn(result.user)
-      navigate('/', { replace: true })
+      navigate(result.user.mfa_required && !result.user.mfa_enabled ? '/account' : '/', { replace: true })
     } catch (submitError) {
       setError(submitError instanceof ApiError ? submitError.message : 'Cannot connect. Please try again.')
     } finally {
@@ -70,7 +78,7 @@ export function LoginPage({ onSignedIn }: { onSignedIn: (user: LoginResponse['us
         ) : null}
 
         <form className="stack" onSubmit={onSubmit}>
-          <label className="field">
+          {mfa ? <label className="field">Authenticator or recovery code<input required autoComplete="one-time-code" value={code} onChange={event => setCode(event.target.value)} /></label> : <label className="field">
             <span>Email address</span>
             <input
               type="email"
@@ -80,9 +88,9 @@ export function LoginPage({ onSignedIn }: { onSignedIn: (user: LoginResponse['us
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-          </label>
+          </label>}
 
-          {method === 'password' && <label className="field">
+          {!mfa && method === 'password' && <label className="field">
             <span>Password</span>
             <input
               type="password"
@@ -94,12 +102,12 @@ export function LoginPage({ onSignedIn }: { onSignedIn: (user: LoginResponse['us
           </label>}
 
           <button type="submit" disabled={isLoading}>
-            {isLoading ? 'Please wait…' : method === 'password' ? 'Sign in' : 'Send email link'}
+            {isLoading ? 'Please wait…' : mfa ? 'Verify code' : method === 'password' ? 'Sign in' : 'Send email link'}
           </button>
         </form>
-        <div className="inline-actions">
+        {mfa ? <p>Use a current six-digit authenticator code or a saved recovery code. Codes cannot be reused; wait for a new authenticator code if one was just used. <button type="button" onClick={() => { setMfa(false); setCode(''); setError(null) }}>Start a new sign-in</button></p> : <div className="inline-actions">
           {(['password', 'magic', 'reset'] as const).filter(value => value === 'password' || emailEnabled).map(value => <button key={value} type="button" disabled={isLoading || value === method} onClick={() => { setMethod(value); setError(null); setNotice(''); setPassword('') }}>{value === 'password' ? 'Use password' : value === 'magic' ? 'Use email link' : 'Forgot password?'}</button>)}
-        </div>
+        </div>}
       </div>
     </div>
   )

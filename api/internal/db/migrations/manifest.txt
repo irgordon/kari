@@ -4,3 +4,4 @@
 000004_seed.sql
 000005_authentication.sql
 000006_email_access.sql
+000007_mfa.sql

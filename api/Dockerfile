@@ -12,6 +12,7 @@ COPY proto ./proto
 
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/kari-api ./api/cmd/kari-api
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/kari-migrate ./api/cmd/migrate
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/kari-admin ./api/cmd/kari-admin
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/healthcheck ./api/cmd/healthcheck
 
 FROM scratch
@@ -20,6 +21,7 @@ WORKDIR /app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /out/kari-api /app/kari-api
 COPY --from=builder /out/kari-migrate /app/kari-migrate
+COPY --from=builder /out/kari-admin /app/kari-admin
 COPY --from=builder /out/healthcheck /app/healthcheck
 
 USER 1001:1001

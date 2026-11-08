@@ -21,6 +21,7 @@ import (
 	"github.com/irgordon/kari/api/internal/api/router"
 	"github.com/irgordon/kari/api/internal/config"
 	"github.com/irgordon/kari/api/internal/core/services"
+	karidb "github.com/irgordon/kari/api/internal/db"
 	"github.com/irgordon/kari/api/internal/db/postgres"
 	agent "github.com/irgordon/kari/api/internal/grpc/rustagent"
 	"github.com/irgordon/kari/api/internal/infrastructure/crypto"
@@ -44,6 +45,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer dbPool.Close()
+	version, err := karidb.SchemaVersion(context.Background(), dbPool)
+	plan, planErr := karidb.LoadMigrationPlan()
+	if err != nil || planErr != nil || version != len(plan) {
+		logger.Error("FATAL: Database must match this release; run the supported migration or restore procedure")
+		os.Exit(1)
+	}
 
 	// 🛡️ gRPC Link to Rust Muscle over Unix Socket
 	// Keepalive ensures the Brain detects a dead Muscle and triggers transport reconnection
@@ -55,6 +62,9 @@ func main() {
 	grpcConn, err := grpc.Dial(
 		cfg.AgentSocket,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		// A filesystem endpoint is not a valid HTTP/2 authority. Peer identity is
+		// still enforced by the native agent using the Unix connection credentials.
+		grpc.WithAuthority("localhost"),
 		grpc.WithContextDialer(grpcDialer),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                30 * time.Second, // Send keepalive ping every 30s
@@ -78,15 +88,13 @@ func main() {
 		logger.Error("FATAL: Cannot check setup state", "error", err)
 		os.Exit(1)
 	}
-	setupToken := ""
+	setupToken := cfg.SetupToken
 	if !configured {
-		setupToken, err = handlers.GenerateSetupToken()
-		if err != nil {
-			logger.Error("FATAL: Cannot generate setup token", "error", err)
+		if len(setupToken) < 32 {
+			logger.Error("FATAL: Initialize a private KARI_SETUP_TOKEN with kari-admin init or install")
 			os.Exit(1)
 		}
-		// This local operator capability is never placed in a URL or returned by the API.
-		logger.Info("Open the frontend /setup page. Setup token expires in 15 minutes.", "setup_token", setupToken)
+		logger.Info("Open the frontend /setup page and retrieve the setup key through the local operator command. It expires in 15 minutes.")
 	}
 	setupHandler := handlers.NewSetupHandler(userRepo, logger, setupToken)
 	if cfg.MasterKeyHex == "" && cfg.Environment == "development" {
@@ -124,6 +132,7 @@ func main() {
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, cfg.Environment != "development")
+	authHandler.MFA = &services.MFAService{Repo: userRepo, Auth: authService, Crypto: cryptoService}
 	emailHandler := &handlers.EmailAccessHandler{Service: emailAccess, Auth: authHandler}
 	deployHandler := handlers.NewDeploymentHandler(deployRepo, cryptoService, telemetryHub)
 
@@ -145,6 +154,13 @@ func main() {
 	// App Availability Monitor
 	appMonitor := workers.NewAppMonitor(appRepo, auditRepo, logger, 1*time.Minute)
 	go appMonitor.Start(workerCtx)
+	setupHandler.Auth = authHandler
+	setupHandler.DatabaseReady = dbPool.Ping
+	setupHandler.AgentReady = healthProber.IsHealthy
+	setupHandler.AgentRequired = cfg.RequireAgent
+	setupHandler.PublicURL = cfg.PublicURL
+	setupHandler.EmailConfigured = emailAccess.Enabled()
+	setupHandler.Version = cfg.Version
 
 	// --- 6. HTTP Gateway ---
 	mux := router.NewRouter(router.RouterConfig{

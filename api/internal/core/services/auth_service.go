@@ -45,15 +45,29 @@ func (s *AuthService) sessionTokens(user *domain.User, sessionID uuid.UUID) (*do
 }
 
 func (s *AuthService) GenerateTokenPair(ctx context.Context, user *domain.User) (*domain.TokenPair, error) {
-	sessionID := uuid.New()
-	tokens, err := s.sessionTokens(user, sessionID)
+	tokens, session, err := s.prepareLogin(user)
 	if err != nil {
 		return nil, err
 	}
-	err = s.repo.CreateSession(ctx, &domain.Session{ID: sessionID, UserID: user.ID,
-		CredentialVersion: user.CredentialVersion,
-		RefreshHash:       refreshHash(tokens.RefreshToken), ExpiresAt: time.Now().Add(7 * 24 * time.Hour)})
+	err = s.repo.CreateSession(ctx, session)
 	return tokens, err
+}
+
+func (s *AuthService) prepareLogin(user *domain.User) (*domain.TokenPair, *domain.Session, error) {
+	id := uuid.New()
+	if user.MFAEnabled {
+		entropy := make([]byte, 32)
+		if _, err := rand.Read(entropy); err != nil {
+			return nil, nil, err
+		}
+		challenge := base64.RawURLEncoding.EncodeToString(entropy)
+		return &domain.TokenPair{MFAChallenge: challenge}, &domain.Session{ID: id, UserID: user.ID, CredentialVersion: user.CredentialVersion, MFAPending: true, RefreshHash: refreshHash(challenge), ExpiresAt: time.Now().Add(5 * time.Minute)}, nil
+	}
+	tokens, err := s.sessionTokens(user, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	return tokens, &domain.Session{ID: id, UserID: user.ID, CredentialVersion: user.CredentialVersion, RefreshHash: refreshHash(tokens.RefreshToken), ExpiresAt: time.Now().Add(7 * 24 * time.Hour)}, nil
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (*domain.TokenPair, *domain.User, error) {
@@ -84,6 +98,7 @@ func (s *AuthService) RefreshTokens(ctx context.Context, refreshToken string) (*
 	if !user.IsActive {
 		return nil, domain.ErrInvalidCredentials
 	}
+	user.MFAVerified = session.MFAVerified
 	tokens, err := s.sessionTokens(user, session.ID)
 	if err != nil {
 		return nil, err
@@ -119,7 +134,11 @@ func (s *AuthService) CurrentUser(ctx context.Context, token string) (*domain.Us
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.GetByID(ctx, claims.UserID)
+	user, err := s.repo.GetByID(ctx, claims.UserID)
+	if err == nil {
+		user.MFAVerified = claims.MFAVerified
+	}
+	return user, err
 }
 
 func (s *AuthService) Logout(ctx context.Context, refreshToken, accessToken string) error {

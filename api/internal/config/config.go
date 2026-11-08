@@ -14,6 +14,8 @@ import (
 // 🛡️ SLA: It knows NOTHING about the host operating system's filesystem.
 type Config struct {
 	Environment    string // "development" or "production"
+	SetupToken     string
+	Version        string
 	DatabaseURL    string
 	Port           string
 	AllowedOrigins []string
@@ -83,6 +85,8 @@ func Load() *Config {
 		log.Fatal("invalid KARI_SMTP_PORT")
 	}
 	return &Config{
+		SetupToken:     getEnv("KARI_SETUP_TOKEN", ""),
+		Version:        getEnv("KARI_VERSION", "development"),
 		PublicURL:      getEnv("KARI_PUBLIC_URL", ""),
 		Mail:           mail.Config{Host: getEnv("KARI_SMTP_HOST", ""), Port: smtpPort, Username: getEnv("KARI_SMTP_USERNAME", ""), Password: getEnv("KARI_SMTP_PASSWORD", ""), From: getEnv("KARI_SMTP_FROM", ""), Development: env == "development"},
 		TrustedProxies: trustedProxies,

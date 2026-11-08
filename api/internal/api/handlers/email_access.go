@@ -77,6 +77,7 @@ func (h *EmailAccessHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		user.EmailVerified = true
+		user.MFARequired = h.Auth.SecureCookies
 		writeJSON(w, 200, map[string]interface{}{"message": "Email verified", "user": user})
 	case "/api/v1/auth/email/reset":
 		if err := h.Service.Reset(r.Context(), req.Token, req.Password); err != nil {
@@ -92,6 +93,11 @@ func (h *EmailAccessHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.Auth.setAuthCookies(w, tokens)
+		if tokens.MFAChallenge != "" {
+			writeJSON(w, 200, map[string]bool{"mfa_required": true})
+			return
+		}
+		user.MFARequired = h.Auth.SecureCookies
 		writeJSON(w, 200, map[string]interface{}{"user": user})
 	default:
 		writeJSON(w, 404, map[string]string{"message": "Unknown email action"})
@@ -99,6 +105,10 @@ func (h *EmailAccessHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EmailAccessHandler) failure(w http.ResponseWriter, err error) {
+	if errors.Is(err, domain.ErrMFAChallengeBusy) {
+		h.Auth.authError(w, err)
+		return
+	}
 	switch {
 	case errors.Is(err, services.ErrEmailDisabled):
 		writeJSON(w, 503, map[string]string{"message": "Email delivery is not configured. Contact your administrator."})

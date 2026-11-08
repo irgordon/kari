@@ -2,9 +2,7 @@ package handlers
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -23,22 +21,21 @@ type SetupRepository interface {
 }
 
 type SetupHandler struct {
-	repo    SetupRepository
-	logger  *slog.Logger
-	token   string
-	expires time.Time
+	repo            SetupRepository
+	logger          *slog.Logger
+	token           string
+	expires         time.Time
+	Auth            *AuthHandler
+	DatabaseReady   func(context.Context) error
+	AgentReady      func() bool
+	AgentRequired   bool
+	PublicURL       string
+	EmailConfigured bool
+	Version         string
 }
 
 func NewSetupHandler(repo SetupRepository, logger *slog.Logger, token string) *SetupHandler {
 	return &SetupHandler{repo: repo, logger: logger, token: token, expires: time.Now().Add(15 * time.Minute)}
-}
-
-func GenerateSetupToken() (string, error) {
-	entropy := make([]byte, 32)
-	if _, err := rand.Read(entropy); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(entropy), nil
 }
 
 func (h *SetupHandler) Status(w http.ResponseWriter, r *http.Request) {
@@ -48,6 +45,31 @@ func (h *SetupHandler) Status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]bool{"configured": configured})
+}
+
+func (h *SetupHandler) Onboarding(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("kari_access_token")
+	if err != nil || h.Auth == nil {
+		writeJSON(w, 401, map[string]string{"message": "Sign in first"})
+		return
+	}
+	user, err := h.Auth.Service.CurrentUser(r.Context(), cookie.Value)
+	if err != nil {
+		h.Auth.authError(w, err)
+		return
+	}
+	databaseReady := h.DatabaseReady != nil && h.DatabaseReady(r.Context()) == nil
+	agentReady := h.AgentReady != nil && h.AgentReady()
+	checks := map[string]bool{"administrator": true, "https": strings.HasPrefix(h.PublicURL, "https://") || !h.Auth.SecureCookies,
+		"database": databaseReady, "native_agent": agentReady, "verified_email": h.EmailConfigured && user.EmailVerified, "mfa": user.MFAEnabled && user.MFAVerified}
+	complete := true
+	for name, ok := range checks {
+		if name == "native_agent" && !h.AgentRequired {
+			continue
+		}
+		complete = complete && ok
+	}
+	writeJSON(w, 200, map[string]interface{}{"checks": checks, "complete": complete, "version": h.Version, "agent_required": h.AgentRequired})
 }
 
 func (h *SetupHandler) SetupGuard(next http.Handler) http.Handler {
@@ -79,7 +101,7 @@ func (h *SetupHandler) SetupAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		provided := r.Header.Get("X-Setup-Token")
 		if h.token == "" || time.Now().After(h.expires) || subtle.ConstantTimeCompare([]byte(provided), []byte(h.token)) != 1 {
-			writeJSON(w, 401, map[string]string{"message": "Invalid or expired setup token. Restart the API to obtain a new token."})
+			writeJSON(w, 401, map[string]string{"message": "Invalid or expired setup token. Ask your operator to retrieve the private key or restart the API if it has expired."})
 			return
 		}
 		next.ServeHTTP(w, r)

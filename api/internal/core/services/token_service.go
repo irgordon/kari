@@ -13,6 +13,7 @@ import (
 // KariClaims holds the stateless authorization data.
 type KariClaims struct {
 	SessionID   string   `json:"sid,omitempty"`
+	MFAVerified bool     `json:"mfa"`
 	Rank        string   `json:"rank,omitempty"`
 	Permissions []string `json:"permissions,omitempty"`
 	Email       string   `json:"email,omitempty"`
@@ -85,7 +86,8 @@ func (s *TokenService) GenerateAccessToken(user *domain.User) (string, error) {
 func (s *TokenService) GenerateSessionAccessToken(user *domain.User, sessionID uuid.UUID) (string, error) {
 	now := time.Now()
 	claims := KariClaims{SessionID: sessionID.String(), TokenType: "access",
-		Email: user.Email, Rank: user.Rank, Permissions: user.Permissions,
+		MFAVerified: user.MFAVerified,
+		Email:       user.Email, Rank: user.Rank, Permissions: user.Permissions,
 		RegisteredClaims: jwt.RegisteredClaims{Subject: user.ID.String(), Issuer: "kari-brain",
 			IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute))}}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
@@ -111,6 +113,7 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (*domain.UserClai
 		return nil, fmt.Errorf("missing or invalid session")
 	}
 	return &domain.UserClaims{
+		MFAVerified: claims.MFAVerified,
 		SessionID:   sessionID,
 		UserID:      userID,
 		Subject:     userID,
