@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import { createHash, randomBytes } from 'node:crypto'
+import { fileURLToPath } from 'node:url'
 
 const email = 'owner@example.test'
 const password = 'Correct-Horse-42!'
@@ -114,5 +117,71 @@ test.describe('real frontend, API, and PostgreSQL', () => {
     await page.goto('/settings')
     await expect(page).toHaveURL(/\/login$/)
     await expect(page.getByRole('heading', { name: 'Sign in to Karı' })).toBeVisible()
+  })
+})
+
+test.describe('email capability confirmation', () => {
+  test.beforeAll(async ({ request, baseURL }) => {
+    if (!process.env.COMPOSE_PROJECT_NAME?.startsWith('kari-smoke-') || new URL(baseURL!).hostname !== '127.0.0.1') throw new Error('Email fixtures require a disposable local topology-smoke stack')
+    const status = await request.get('/api/v1/setup/status')
+    if (!(await status.json() as { configured: boolean }).configured) {
+      const setup = await request.post('/api/v1/setup/finalize', {
+        headers: { Origin: baseURL!, 'X-Setup-Token': process.env.KARI_E2E_SETUP_TOKEN ?? '' },
+        data: { admin_email: email, admin_password: password },
+      })
+      expect(setup.status()).toBe(201)
+    }
+  })
+  test('opening a link keeps its token out of the URL and waits for confirmation', async ({ page }) => {
+    let redemptions = 0
+    page.on('request', request => {
+      if (request.method() === 'POST' && request.url().endsWith('/auth/email/magic')) redemptions++
+    })
+    await page.goto(`/auth/email/magic#token=${'a'.repeat(43)}`)
+    await expect(page.getByRole('heading', { name: 'Confirm sign-in' })).toBeVisible()
+    await expect(page).toHaveURL(/\/auth\/email\/magic$/)
+    expect(redemptions).toBe(0)
+    await page.getByRole('button', { name: 'Confirm sign-in' }).click()
+    await expect(page.getByRole('alert')).toContainText('invalid, expired, already used')
+    expect(redemptions).toBe(1)
+  })
+
+  test('verified links sign in and reset the password through the real frontend', async ({ page, context }) => {
+    const seed = (purpose: 'verify' | 'magic' | 'reset') => {
+      const token = randomBytes(32).toString('base64url')
+      const hash = createHash('sha256').update(token).digest('hex')
+      const compose = fileURLToPath(new URL('../../scripts/compose.sh', import.meta.url))
+      const container = execFileSync(compose, ['ps', '-q', 'db'], { encoding: 'utf8' }).trim()
+      // Controlled fixture constants and a hex hash enter only the disposable database.
+      execFileSync('docker', ['exec', '-i', container, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'kari', '-d', 'kari'], {
+        input: `INSERT INTO account_email_tokens (user_id, purpose, token_hash, credential_version, expires_at)
+          SELECT id, '${purpose}', '${hash}', credential_version, NOW() + INTERVAL '15 minutes' FROM users WHERE email = '${email}'
+          ON CONFLICT (user_id, purpose) DO UPDATE SET token_hash = EXCLUDED.token_hash, credential_version = EXCLUDED.credential_version, expires_at = EXCLUDED.expires_at, consumed_at = NULL;`,
+        stdio: ['pipe', 'ignore', 'pipe'],
+      })
+      return token
+    }
+    await signIn(page)
+    await page.goto(`/auth/email/verify#token=${seed('verify')}`)
+    await page.getByRole('button', { name: 'Verify email', exact: true }).click()
+    await expect(page).toHaveURL(/\/account$/)
+    await expect(page.getByText('Email verified', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Sign out' }).click()
+    await expect(page).toHaveURL(/\/login$/)
+    await page.goto(`/auth/email/magic#token=${seed('magic')}`)
+    await page.getByRole('button', { name: 'Confirm sign-in', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+    const captured = (await context.cookies()).map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
+    await page.goto(`/auth/email/reset#token=${seed('reset')}`)
+    await page.getByLabel('New password', { exact: true }).fill('Replacement-Password-84!')
+    await page.getByLabel('Confirm new password').fill('Replacement-Password-84!')
+    await page.getByRole('button', { name: 'Update password', exact: true }).click()
+    await expect(page.getByRole('status')).toContainText('Password updated')
+    expect((await page.request.get('/api/v1/auth/me', { headers: { Cookie: captured } })).status()).toBe(401)
+    await page.getByRole('link', { name: 'Return to sign-in' }).click()
+    await page.getByLabel('Email address').fill(email)
+    await page.getByLabel('Password', { exact: true }).fill('Replacement-Password-84!')
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
   })
 })

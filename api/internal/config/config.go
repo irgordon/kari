@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/irgordon/kari/api/internal/infrastructure/mail"
 )
 
 // Config holds all dynamic configuration for the Brain.
@@ -16,6 +18,8 @@ type Config struct {
 	Port           string
 	AllowedOrigins []string
 	TrustedProxies []netip.Prefix
+	PublicURL      string
+	Mail           mail.Config
 
 	// 🛡️ Zero-Trust Identity
 	JWTSecret    string
@@ -74,7 +78,13 @@ func Load() *Config {
 		trustedProxies = append(trustedProxies, prefix)
 	}
 
+	smtpPort, err := strconv.Atoi(getEnv("KARI_SMTP_PORT", "587"))
+	if err != nil {
+		log.Fatal("invalid KARI_SMTP_PORT")
+	}
 	return &Config{
+		PublicURL:      getEnv("KARI_PUBLIC_URL", ""),
+		Mail:           mail.Config{Host: getEnv("KARI_SMTP_HOST", ""), Port: smtpPort, Username: getEnv("KARI_SMTP_USERNAME", ""), Password: getEnv("KARI_SMTP_PASSWORD", ""), From: getEnv("KARI_SMTP_FROM", ""), Development: env == "development"},
 		TrustedProxies: trustedProxies,
 		Environment:    env,
 		DatabaseURL:    dbURL,

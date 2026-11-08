@@ -101,7 +101,7 @@ func execStatement(ctx context.Context, pool *pgxpool.Pool, statement string) er
 }
 
 func testSchemaHead(t *testing.T, suite *contractSuite) {
-	assertCount(t, suite.pool, "SELECT COUNT(*) FROM schema_migrations", 5)
+	assertCount(t, suite.pool, "SELECT COUNT(*) FROM schema_migrations", 6)
 	assertCount(t, suite.pool, "SELECT COUNT(*) FROM roles", 4)
 	assertCount(t, suite.pool, "SELECT COUNT(*) FROM permissions", 9)
 	assertCount(t, suite.pool, "SELECT COUNT(*) FROM pg_extension WHERE extname = 'pgcrypto'", 1)

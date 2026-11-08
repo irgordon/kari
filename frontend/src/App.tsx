@@ -1,6 +1,9 @@
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { ApiError, apiGet, apiPost } from './lib/api'
+import type { AccountUser } from './lib/api'
+import { AccountPage } from './pages/AccountPage'
+import { EmailLinkPage } from './pages/EmailLinkPage'
 import { SetupPage } from './pages/SetupPage'
 import './App.css'
 import { AuditPage } from './pages/AuditPage'
@@ -13,7 +16,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { SystemPage } from './pages/SystemPage'
 
 function App() {
-  const [session, setSession] = useState<{ configured: boolean; user: { email: string } | null } | null>(null)
+  const [session, setSession] = useState<{ configured: boolean; user: AccountUser | null } | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
@@ -23,7 +26,7 @@ function App() {
         const status = await apiGet<{ configured: boolean }>('/api/v1/setup/status')
         let user = null
         if (status.configured) {
-          try { user = (await apiGet<{ user: { email: string } }>('/api/v1/auth/me')).user }
+          try { user = (await apiGet<{ user: AccountUser }>('/api/v1/auth/me')).user }
           catch (error) { if (!(error instanceof ApiError && error.status === 401)) throw error }
         }
         if (!cancelled) { setSession({ ...status, user }); setError('') }
@@ -42,14 +45,15 @@ function App() {
   </Routes>
   return (
     <Routes>
+      <Route path="/auth/email/:purpose" element={<EmailLinkPage onSignedIn={user => setSession({ configured: true, user })} onReset={() => setSession({ configured: true, user: null })} />} />
       <Route path="/setup" element={<Navigate to={session.user ? '/' : '/login?setup=complete'} replace />} />
       <Route path="/login" element={session.user ? <Navigate to="/" replace /> : <LoginPage onSignedIn={user => setSession({ configured: true, user })} />} />
-      <Route path="*" element={session.user ? <AppShell email={session.user.email} onSignedOut={() => setSession({ configured: true, user: null })} /> : <Navigate to="/login" replace />} />
+      <Route path="*" element={session.user ? <AppShell user={session.user} onSignedOut={() => setSession({ configured: true, user: null })} /> : <Navigate to="/login" replace />} />
     </Routes>
   )
 }
 
-function AppShell({ email, onSignedOut }: { email: string; onSignedOut: () => void }) {
+function AppShell({ user, onSignedOut }: { user: AccountUser; onSignedOut: () => void }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   async function logout() {
@@ -64,6 +68,7 @@ function AppShell({ email, onSignedOut }: { email: string; onSignedOut: () => vo
         <div className="brand">Karı</div>
         <nav>
           <ul className="nav-list">
+            <li><NavLink to="/account" className="nav-link">Account</NavLink></li>
             <li>
               <NavLink to="/" end className="nav-link">
                 Dashboard
@@ -101,12 +106,13 @@ function AppShell({ email, onSignedOut }: { email: string; onSignedOut: () => vo
             </li>
           </ul>
         </nav>
-        <span>{email}</span>
+        <span>{user.email}</span>
         <button disabled={busy} onClick={() => void logout()}>Sign out</button>
       </header>
       <main className="page-main">
         {error && <p role="alert">{error}</p>}
         <Routes>
+          <Route path="/account" element={<AccountPage user={user} />} />
           <Route path="/" element={<DashboardPage />} />
           <Route path="/deployments" element={<DeploymentsPage />} />
           <Route path="/domains" element={<DomainsPage />} />

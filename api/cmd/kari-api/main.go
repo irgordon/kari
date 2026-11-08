@@ -24,6 +24,7 @@ import (
 	"github.com/irgordon/kari/api/internal/db/postgres"
 	agent "github.com/irgordon/kari/api/internal/grpc/rustagent"
 	"github.com/irgordon/kari/api/internal/infrastructure/crypto"
+	"github.com/irgordon/kari/api/internal/infrastructure/mail"
 	"github.com/irgordon/kari/api/internal/telemetry"
 	"github.com/irgordon/kari/api/internal/worker"
 	"github.com/irgordon/kari/api/internal/workers"
@@ -109,10 +110,21 @@ func main() {
 	// Services
 	tokenService := services.NewTokenService(cfg.JWTSecret)
 	authService := services.NewAuthService(userRepo, tokenService)
+	mailer, err := mail.NewSMTP(cfg.Mail)
+	if err != nil {
+		logger.Error("FATAL: Invalid SMTP configuration", "error", err)
+		os.Exit(1)
+	}
+	emailAccess, err := services.NewEmailAccess(userRepo, authService, mailer, cfg.PublicURL, cfg.Environment == "development", logger)
+	if err != nil {
+		logger.Error("FATAL: Invalid email access configuration", "error", err)
+		os.Exit(1)
+	}
 	roleService := services.NewRoleService(userRepo, logger)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, cfg.Environment != "development")
+	emailHandler := &handlers.EmailAccessHandler{Service: emailAccess, Auth: authHandler}
 	deployHandler := handlers.NewDeploymentHandler(deployRepo, cryptoService, telemetryHub)
 
 	authMiddleware := middleware.NewAuthMiddleware(authService, roleService, userRepo, logger)
@@ -120,6 +132,7 @@ func main() {
 	// --- 5. Background Workers ---
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
+	go emailAccess.Run(workerCtx)
 
 	// 🛡️ Deployment Worker: Claims tasks and orchestrates gRPC -> SSE
 	deployWorker := worker.NewDeploymentWorker(deployRepo, cryptoService, agentClient, telemetryHub, logger)
@@ -138,6 +151,7 @@ func main() {
 		AllowedOrigins: cfg.AllowedOrigins,
 		TrustedProxies: cfg.TrustedProxies,
 		AuthHandler:    authHandler,
+		EmailHandler:   emailHandler,
 		DeployHandler:  deployHandler,
 		SetupHandler:   setupHandler,
 		AuthMiddleware: authMiddleware,

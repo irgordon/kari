@@ -108,3 +108,41 @@ the current session immediately; other signed-in devices retain their own sessio
 as CI, deleting its database afterward. It requires the pinned Node/npm tools and
 downloads Chromium using the lockfile-pinned Playwright release. This command is
 also part of `make verify`.
+
+## Account email access and recovery
+
+Configure `KARI_PUBLIC_URL` as the panel's externally reachable HTTPS origin,
+without a path, query, or credentials. Set `KARI_SMTP_HOST`, `KARI_SMTP_PORT`
+(default `587`), `KARI_SMTP_FROM`, and, when required, `KARI_SMTP_USERNAME` and
+`KARI_SMTP_PASSWORD` in the protected environment file. Restart the API after
+changing these values. Keep SMTP credentials out of source control.
+
+SMTP requires certificate-verified STARTTLS before authentication or delivery.
+Only development mode permits unauthenticated plaintext delivery to a literal
+loopback IP for a local mail sink. Each delivery attempt has a ten-second deadline.
+This is transactional account email, not hosted customer mailboxes.
+
+Sign in with your password, open **Account**, and request verification. Open the
+emailed link in the same browser and confirm while signed in to that account.
+Only verified, active accounts can receive password-reset or magic sign-in links.
+The login page offers those methods when SMTP is configured. A reset changes the
+password and revokes all previous sessions and outstanding email capabilities;
+it does not automatically sign the user in. Other accounts are unaffected.
+
+Links expire after 15 minutes, are single-use, and are stored only as hashes.
+Tokens travel in URL fragments and are cleared from browser history when opened.
+Loading a link does not redeem it: the user must explicitly confirm the action.
+Requesting a replacement invalidates the previous link for that purpose. Requests
+are limited to one per minute and five per hour for each account and purpose.
+
+Public request responses deliberately do not reveal whether an account exists,
+is verified, or whether SMTP delivery succeeded. A bounded queue holds up to 64
+requests for one application-owned delivery worker. Delivery failures log only
+the purpose, never recipients, tokens, or SMTP responses. There is one delivery
+attempt per accepted request, with no automatic retry. Pending requests are not
+durable across API restarts; users must request another link if needed. Existing
+unexpired links remain redeemable if new email delivery is disabled.
+
+Confirm actual inbox delivery with your SMTP provider before relying on email
+recovery. Administrator MFA, offline emergency recovery, and installation/upgrade
+safety remain separate P1 work; email links do not provide MFA.

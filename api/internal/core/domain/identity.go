@@ -22,17 +22,19 @@ type UserClaims struct {
 }
 
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
-	IsActive     bool      `json:"is_active"`
-	RoleID       uuid.UUID `json:"role_id"`
-	Role         Role      `json:"role"`
-	Rank         string    `json:"rank,omitempty"`
-	Permissions  []string  `json:"permissions,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                uuid.UUID `json:"id"`
+	Username          string    `json:"username"`
+	Email             string    `json:"email"`
+	EmailVerified     bool      `json:"email_verified"`
+	CredentialVersion int       `json:"-"`
+	PasswordHash      string    `json:"-"`
+	IsActive          bool      `json:"is_active"`
+	RoleID            uuid.UUID `json:"role_id"`
+	Role              Role      `json:"role"`
+	Rank              string    `json:"rank,omitempty"`
+	Permissions       []string  `json:"permissions,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type Role struct {
@@ -61,10 +63,11 @@ type AuthService interface {
 }
 
 type Session struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	RefreshHash string
-	ExpiresAt   time.Time
+	CredentialVersion int
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	RefreshHash       string
+	ExpiresAt         time.Time
 }
 
 type SessionRepository interface {

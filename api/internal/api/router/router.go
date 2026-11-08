@@ -23,6 +23,7 @@ type RouterConfig struct {
 	AllowedOrigins []string
 	TrustedProxies []netip.Prefix
 	AuthHandler    *handlers.AuthHandler
+	EmailHandler   *handlers.EmailAccessHandler
 	AppHandler     *handlers.AppHandler
 	DomainHandler  *handlers.DomainHandler
 	AuditHandler   *handlers.AuditHandler
@@ -113,6 +114,14 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			r.Post("/auth/refresh", cfg.AuthHandler.Refresh)
 			r.Post("/auth/logout", cfg.AuthHandler.Logout)
 			r.Get("/auth/me", cfg.AuthHandler.Me)
+			if cfg.EmailHandler != nil {
+				r.Get("/auth/email/status", cfg.EmailHandler.Status)
+				r.Post("/auth/email/request", cfg.EmailHandler.Request)
+				r.Post("/auth/email/verification/request", cfg.EmailHandler.RequestVerification)
+				r.Post("/auth/email/verify", cfg.EmailHandler.Confirm)
+				r.Post("/auth/email/reset", cfg.EmailHandler.Confirm)
+				r.Post("/auth/email/magic", cfg.EmailHandler.Confirm)
+			}
 
 			if cfg.AppHandler != nil {
 				r.Post("/webhooks/github/{id}", cfg.AppHandler.HandleGitHubWebhook)

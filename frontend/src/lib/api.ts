@@ -1,5 +1,7 @@
 export type ApiPath = `/api/v1/${string}`
 
+export interface AccountUser { id: string; email: string; email_verified: boolean }
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) { super(message); this.status = status }

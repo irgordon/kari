@@ -51,7 +51,8 @@ func (s *AuthService) GenerateTokenPair(ctx context.Context, user *domain.User) 
 		return nil, err
 	}
 	err = s.repo.CreateSession(ctx, &domain.Session{ID: sessionID, UserID: user.ID,
-		RefreshHash: refreshHash(tokens.RefreshToken), ExpiresAt: time.Now().Add(7 * 24 * time.Hour)})
+		CredentialVersion: user.CredentialVersion,
+		RefreshHash:       refreshHash(tokens.RefreshToken), ExpiresAt: time.Now().Add(7 * 24 * time.Hour)})
 	return tokens, err
 }
 
