@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 // RouterConfig defines the strict dependencies required to build the API routing tree.
 type RouterConfig struct {
 	AllowedOrigins []string
+	TrustedProxies []netip.Prefix
 	AuthHandler    *handlers.AuthHandler
 	AppHandler     *handlers.AppHandler
 	DomainHandler  *handlers.DomainHandler
@@ -41,16 +43,12 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	// =========================================================================
 
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(auth_middleware.StructuredLogger(cfg.Logger))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	// 🛡️ Limit all incoming JSON requests to 1 Megabyte max (OOM Protection)
 	r.Use(auth_middleware.MaxBytes(1_048_576))
-
-	// 🛡️ In-memory token bucket rate limiting
-	r.Use(auth_middleware.RateLimitMiddleware)
 
 	// 🔒 Force all connections to use TLS/SSL and inject HSTS headers
 	r.Use(auth_middleware.EnforceTLS)
@@ -77,6 +75,8 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			next.ServeHTTP(w, r)
 		})
 	})
+
+	r.Use(auth_middleware.RateLimitMiddleware(cfg.TrustedProxies))
 
 	// Strict CORS Configuration
 	r.Use(cors.Handler(cors.Options{

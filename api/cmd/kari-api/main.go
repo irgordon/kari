@@ -136,6 +136,7 @@ func main() {
 	// --- 6. HTTP Gateway ---
 	mux := router.NewRouter(router.RouterConfig{
 		AllowedOrigins: cfg.AllowedOrigins,
+		TrustedProxies: cfg.TrustedProxies,
 		AuthHandler:    authHandler,
 		DeployHandler:  deployHandler,
 		SetupHandler:   setupHandler,

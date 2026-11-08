@@ -3,7 +3,9 @@ package middleware
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +21,6 @@ type AuthMiddleware struct {
 	RoleService domain.RoleService
 	UserRepo    domain.UserRepository // 🛡️ Added for Real-time Zero-Trust checks
 	Logger      *slog.Logger
-	visitors    sync.Map // 🛡️ Thread-safe Map for high-concurrency scaling
 }
 
 type visitor struct {
@@ -34,8 +35,6 @@ func NewAuthMiddleware(authService domain.AuthService, roleService domain.RoleSe
 		UserRepo:    userRepo,
 		Logger:      logger,
 	}
-	// Start cleanup worker as a managed method, not a global init
-	go m.cleanupVisitors()
 	return m
 }
 
@@ -75,31 +74,6 @@ func (m *AuthMiddleware) RequireAuthentication(next http.Handler) http.Handler {
 // 2. Performance & DoS Protection
 // ==============================================================================
 
-func (m *AuthMiddleware) RateLimit(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 🛡️ Use X-Real-IP for proxy compatibility
-		ip := r.Header.Get("X-Real-IP")
-		if ip == "" {
-			ip = r.RemoteAddr
-		}
-
-		v, _ := m.visitors.LoadOrStore(ip, &visitor{
-			limiter:  rate.NewLimiter(rate.Limit(10), 30),
-			lastSeen: time.Now(),
-		})
-
-		vis := v.(*visitor)
-		vis.lastSeen = time.Now()
-
-		if !vis.limiter.Allow() {
-			http.Error(w, `{"message": "Rate limit exceeded"}`, http.StatusTooManyRequests)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
 func StructuredLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -123,15 +97,84 @@ func MaxBytes(limit int64) func(http.Handler) http.Handler {
 	}
 }
 
-func RateLimitMiddleware(next http.Handler) http.Handler {
-	limiter := rate.NewLimiter(rate.Limit(10), 30)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !limiter.Allow() {
-			http.Error(w, `{"message": "Rate limit exceeded"}`, http.StatusTooManyRequests)
-			return
+func RateLimitMiddleware(trustedProxies []netip.Prefix) func(http.Handler) http.Handler {
+	type key struct {
+		client netip.Addr
+		scope  string
+	}
+	var mu sync.Mutex
+	visitors := make(map[key]*visitor)
+	lastCleanup := time.Now()
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodOptions || (r.Method == http.MethodGet && (r.URL.Path == "/health" || r.URL.Path == "/ready")) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			client, err := rateLimitClientIP(r, trustedProxies)
+			if err != nil {
+				http.Error(w, `{"message":"Invalid client address"}`, http.StatusBadRequest)
+				return
+			}
+			scope := "read"
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				scope = "write"
+			}
+			if strings.HasPrefix(r.URL.Path, "/api/v1/auth/") || r.URL.Path == "/api/v1/setup/finalize" {
+				scope = "auth"
+			}
+			now := time.Now()
+			mu.Lock()
+			if now.Sub(lastCleanup) >= time.Minute {
+				for k, v := range visitors {
+					if now.Sub(v.lastSeen) > 3*time.Minute {
+						delete(visitors, k)
+					}
+				}
+				lastCleanup = now
+			}
+			k := key{client: client, scope: scope}
+			v := visitors[k]
+			if v == nil && len(visitors) < 4096 {
+				v = &visitor{limiter: rate.NewLimiter(rate.Limit(10), 30)}
+				visitors[k] = v
+			}
+			allowed := false
+			if v != nil {
+				v.lastSeen = now
+				allowed = v.limiter.AllowN(now, 1)
+			}
+			mu.Unlock()
+			if !allowed {
+				w.Header().Set("Retry-After", "1")
+				w.Header().Set("Cache-Control", "no-store")
+				http.Error(w, `{"message":"Rate limit exceeded"}`, http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// Only a configured TCP peer may assert a different client address. Source ports
+// and caller-supplied forwarding chains never define independent rate budgets.
+func rateLimitClientIP(r *http.Request, trustedProxies []netip.Prefix) (netip.Addr, error) {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	peer, err := netip.ParseAddr(host)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	peer = peer.Unmap().WithZone("")
+	for _, prefix := range trustedProxies {
+		if prefix.Contains(peer) {
+			client, err := netip.ParseAddr(r.Header.Get("X-Real-IP"))
+			return client.Unmap().WithZone(""), err
 		}
-		next.ServeHTTP(w, r)
-	})
+	}
+	return peer, nil
 }
 
 func EnforceTLS(next http.Handler) http.Handler {
@@ -141,18 +184,6 @@ func EnforceTLS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-func (m *AuthMiddleware) cleanupVisitors() {
-	ticker := time.NewTicker(time.Minute)
-	for range ticker.C {
-		m.visitors.Range(func(key, value interface{}) bool {
-			if time.Since(value.(*visitor).lastSeen) > 3*time.Minute {
-				m.visitors.Delete(key)
-			}
-			return true
-		})
-	}
 }
 
 // ... [EnforceTLS and StructuredLogger remain as helper functions] ...

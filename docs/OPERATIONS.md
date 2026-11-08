@@ -87,6 +87,18 @@ tokens are not imported; existing users must sign in again once after upgrading.
 Production must terminate HTTPS at a trusted reverse proxy, preserve the original
 Host header, and configure `CORS_ALLOWED_ORIGINS` for the HTTPS frontend origin.
 Browser mutations require an allowed Origin; wildcard origins are unsupported.
+Rate budgets are separate for authentication, reads, and other mutations. Direct
+API requests use their TCP peer address. Only peers in `KARI_TRUSTED_PROXY_CIDRS`
+may supply `X-Real-IP`; do not trust client-supplied forwarding chains.
+Compose reserves `KARI_PROXY_IP` (default `172.30.231.3`) for frontend Nginx and
+trusts only that address. Nginx overwrites `X-Real-IP` with its connection peer.
+If the default `KARI_PROXY_SUBNET` (`172.30.231.0/24`) overlaps an existing network,
+choose a free subnet and a proxy IP within it before startup. Concurrent Compose
+installations on one Docker host need distinct subnets. Additional proxy hops
+require an explicit trust configuration; they are not trusted automatically.
+For an existing installation, use `make compose-down` before `make compose-up`
+to recreate the network with these settings. Preserve the PostgreSQL volume;
+this network change does not require resetting the database.
 Only `KARI_ENV=development` permits non-Secure cookies for local HTTP development.
 Restarting the API does not sign users out. Refresh tokens are stored only as hashes,
 rotate atomically, and have an absolute seven-day session lifetime. Logout revokes

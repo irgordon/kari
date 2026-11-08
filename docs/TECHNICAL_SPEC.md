@@ -161,8 +161,11 @@ boundaries; frontend route guards provide user experience, not access control.
 
 Current permissions and account activity must govern access. Invalid credentials,
 expired or revoked sessions, and unavailable dependencies must not become success
-responses. The current router uses a shared in-process rate limiter; per-client
-rate limiting is not an established system-wide guarantee.
+responses. In-process rate budgets are scoped to client IP and authentication,
+read, or mutation traffic. Forwarded client addresses are accepted only from
+explicitly trusted proxy peers. Limiter state is bounded and idle entries expire;
+health probes remain independent of user traffic. This is not distributed or
+per-account abuse protection.
 
 Account recovery and broader authentication/authorization hardening remain
 separate work. Successful build or browser checks do not certify production security.

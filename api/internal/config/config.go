@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ type Config struct {
 	DatabaseURL    string
 	Port           string
 	AllowedOrigins []string
+	TrustedProxies []netip.Prefix
 
 	// 🛡️ Zero-Trust Identity
 	JWTSecret    string
@@ -60,7 +62,20 @@ func Load() *Config {
 		corsOrigins = "http://localhost:5173"
 	}
 
+	var trustedProxies []netip.Prefix
+	for _, value := range strings.Split(getEnv("KARI_TRUSTED_PROXY_CIDRS", ""), ",") {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(value))
+		if err != nil {
+			log.Fatalf("invalid KARI_TRUSTED_PROXY_CIDRS: %v", err)
+		}
+		trustedProxies = append(trustedProxies, prefix)
+	}
+
 	return &Config{
+		TrustedProxies: trustedProxies,
 		Environment:    env,
 		DatabaseURL:    dbURL,
 		Port:           getEnv("PORT", "8080"),
