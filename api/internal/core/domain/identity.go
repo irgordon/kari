@@ -2,10 +2,13 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var ErrConflict = errors.New("setup is already complete")
 
 type contextKey string
 
@@ -15,6 +18,7 @@ type UserClaims struct {
 	UserID      uuid.UUID
 	Subject     uuid.UUID
 	Permissions []string
+	SessionID   uuid.UUID
 }
 
 type User struct {
@@ -52,6 +56,24 @@ type AuthService interface {
 	RefreshTokens(ctx context.Context, refreshToken string) (*TokenPair, error)
 	GenerateTokenPair(ctx context.Context, user *User) (*TokenPair, error)
 	ValidateAccessToken(ctx context.Context, token string) (*UserClaims, error)
+	Logout(ctx context.Context, refreshToken, accessToken string) error
+	CurrentUser(ctx context.Context, token string) (*User, error)
+}
+
+type Session struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	RefreshHash string
+	ExpiresAt   time.Time
+}
+
+type SessionRepository interface {
+	UserRepository
+	CreateSession(context.Context, *Session) error
+	FindSession(context.Context, string) (*Session, error)
+	RotateSession(context.Context, uuid.UUID, string, string) error
+	RevokeSession(context.Context, string, uuid.UUID, uuid.UUID) error
+	SessionActive(context.Context, uuid.UUID, uuid.UUID) (bool, error)
 }
 
 type RoleService interface {

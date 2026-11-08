@@ -12,8 +12,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "typecheck": "tsc -b --pretty false",
-    "preview": "vite preview"
+    "typecheck": "tsc -b --pretty false && tsc --ignoreConfig --noEmit --target es2023 --module nodenext --types node --skipLibCheck playwright.config.ts tests/auth.spec.ts",
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "react": "^19.2.5",
@@ -21,6 +22,7 @@
     "react-router-dom": "^7.14.2"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",

@@ -64,7 +64,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 	user.Role = role
 	user.RoleID = role.ID
 	user.Rank = fmt.Sprintf("%d", role.Rank)
-	return &user, nil
+	return r.withPermissions(ctx, &user)
 }
 
 func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
@@ -92,8 +92,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, 
 	user.Role = role
 	user.RoleID = role.ID
 	user.Rank = fmt.Sprintf("%d", role.Rank)
-	user.Permissions = []string{}
-	return &user, nil
+	return r.withPermissions(ctx, &user)
 }
 
 // 🛡️ UpdateRefreshToken persists high-entropy tokens for session rotation.
@@ -136,4 +135,110 @@ func (r *UserRepo) UpdateUserRole(ctx context.Context, userID uuid.UUID, roleID 
 		return err
 	}
 	return requireAffectedRow(tag.RowsAffected())
+}
+
+func (r *UserRepo) withPermissions(ctx context.Context, user *domain.User) (*domain.User, error) {
+	rows, err := r.pool.Query(ctx, `SELECT p.resource || ':' || p.action
+		FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
+		WHERE rp.role_id = $1 ORDER BY p.resource, p.action`, user.RoleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	user.Permissions = []string{}
+	for rows.Next() {
+		var permission string
+		if err := rows.Scan(&permission); err != nil {
+			return nil, err
+		}
+		user.Permissions = append(user.Permissions, permission)
+	}
+	return user, rows.Err()
+}
+
+func (r *UserRepo) IsConfigured(ctx context.Context) (bool, error) {
+	var configured bool
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM installation) OR EXISTS (SELECT 1 FROM users)`).Scan(&configured)
+	return configured, err
+}
+
+// CompleteSetup serializes competing installers and commits the administrator and
+// permanent completion marker together. No filesystem state controls setup.
+func (r *UserRepo) CompleteSetup(ctx context.Context, email, passwordHash string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(126283426)`); err != nil {
+		return err
+	}
+	var configured bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM installation) OR EXISTS (SELECT 1 FROM users)`).Scan(&configured); err != nil {
+		return err
+	}
+	if configured {
+		return domain.ErrConflict
+	}
+	tag, err := tx.Exec(ctx, `INSERT INTO users (username, email, password_hash, role_id)
+		SELECT 'admin', $1, $2, id FROM roles WHERE name = 'superadmin'`, email, passwordHash)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return domain.ErrNotFound
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO installation (singleton) VALUES (TRUE)`); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *UserRepo) CreateSession(ctx context.Context, session *domain.Session) error {
+	_, err := r.pool.Exec(ctx, `INSERT INTO auth_sessions (id, user_id, refresh_hash, expires_at) VALUES ($1, $2, $3, $4)`,
+		session.ID, session.UserID, session.RefreshHash, session.ExpiresAt)
+	return err
+}
+
+func (r *UserRepo) FindSession(ctx context.Context, hash string) (*domain.Session, error) {
+	var session domain.Session
+	err := r.pool.QueryRow(ctx, `SELECT id, user_id, refresh_hash, expires_at FROM auth_sessions
+		WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > NOW()`, hash).
+		Scan(&session.ID, &session.UserID, &session.RefreshHash, &session.ExpiresAt)
+	if err == pgx.ErrNoRows {
+		return nil, domain.ErrInvalidCredentials
+	}
+	return &session, err
+}
+
+func (r *UserRepo) RotateSession(ctx context.Context, id uuid.UUID, oldHash, newHash string) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE auth_sessions SET refresh_hash = $3
+		WHERE id = $1 AND refresh_hash = $2 AND revoked_at IS NULL AND expires_at > NOW()
+		AND EXISTS (SELECT 1 FROM users WHERE users.id = auth_sessions.user_id AND is_active)`, id, oldHash, newHash)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return domain.ErrInvalidCredentials
+	}
+	return nil
+}
+
+func (r *UserRepo) RevokeSession(ctx context.Context, hash string, sessionID, userID uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE auth_sessions SET revoked_at = NOW()
+		WHERE refresh_hash = $1 OR (id = $2 AND user_id = $3)`, hash, sessionID, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrInvalidCredentials
+	}
+	return nil
+}
+
+func (r *UserRepo) SessionActive(ctx context.Context, id, userID uuid.UUID) (bool, error) {
+	var active bool
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM auth_sessions s JOIN users u ON u.id = s.user_id
+		WHERE s.id = $1 AND s.user_id = $2 AND s.revoked_at IS NULL AND s.expires_at > NOW() AND u.is_active)`, id, userID).Scan(&active)
+	return active, err
 }

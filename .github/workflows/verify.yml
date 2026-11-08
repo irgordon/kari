@@ -53,7 +53,7 @@ jobs:
         run: rustup toolchain install "${{ steps.versions.outputs.rust }}" --profile minimal --component rustfmt --component clippy
 
       - name: Set up Node
-        if: contains(fromJSON('["preflight","frontend"]'), matrix.stage)
+        if: contains(fromJSON('["preflight","frontend","topology"]'), matrix.stage)
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ steps.versions.outputs.node }}

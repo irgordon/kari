@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { apiPost } from '../lib/api'
+import { ApiError, apiPost } from '../lib/api'
 
 interface LoginResponse {
   message?: string
+  user: { email: string }
 }
 
-export function LoginPage() {
+export function LoginPage({ onSignedIn }: { onSignedIn: (user: LoginResponse['user']) => void }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -25,14 +26,15 @@ export function LoginPage() {
     setError(null)
 
     try {
-      await apiPost<{ email: string; password: string }, LoginResponse>(
+      const result = await apiPost<{ email: string; password: string }, LoginResponse>(
         '/api/v1/auth/login',
         { email, password },
       )
-      navigate('/')
+      setPassword('')
+      onSignedIn(result.user)
+      navigate('/', { replace: true })
     } catch (submitError) {
-      console.error('Login failed', submitError)
-      setError('Invalid credentials.')
+      setError(submitError instanceof ApiError ? submitError.message : 'Cannot connect. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -45,7 +47,8 @@ export function LoginPage() {
         <h1>Sign in to Karı</h1>
         <p className="auth-subtitle">Platform-Agnostic Orchestration Engine</p>
 
-        {error ? <div className="alert error">{error}</div> : null}
+        {error ? <div role="alert" className="alert error">{error}</div> : null}
+        {new URLSearchParams(location.search).get('setup') === 'complete' && <p role="status">Administrator created. Sign in to continue.</p>}
         {!error && sessionExpired ? (
           <div className="alert warning">
             Your session expired. Please log in again.

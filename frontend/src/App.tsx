@@ -1,4 +1,7 @@
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { ApiError, apiGet, apiPost } from './lib/api'
+import { SetupPage } from './pages/SetupPage'
 import './App.css'
 import { AuditPage } from './pages/AuditPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -10,15 +13,51 @@ import { SettingsPage } from './pages/SettingsPage'
 import { SystemPage } from './pages/SystemPage'
 
 function App() {
+  const [session, setSession] = useState<{ configured: boolean; user: { email: string } | null } | null>(null)
+  const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const status = await apiGet<{ configured: boolean }>('/api/v1/setup/status')
+        let user = null
+        if (status.configured) {
+          try { user = (await apiGet<{ user: { email: string } }>('/api/v1/auth/me')).user }
+          catch (error) { if (!(error instanceof ApiError && error.status === 401)) throw error }
+        }
+        if (!cancelled) { setSession({ ...status, user }); setError('') }
+      } catch { if (!cancelled) setError('Cannot connect to Kari. Check the service and try again.') }
+    }
+    void load()
+    const expired = () => setSession(previous => previous ? { ...previous, user: null } : previous)
+    window.addEventListener('kari-session-expired', expired)
+    return () => { cancelled = true; window.removeEventListener('kari-session-expired', expired) }
+  }, [attempt])
+  if (error) return <main className="auth-page"><div role="alert">{error}<button onClick={() => { setError(''); setAttempt(attempt + 1) }}>Try again</button></div></main>
+  if (!session) return <main className="auth-page" role="status">Connecting to Kari…</main>
+  if (!session.configured) return <Routes>
+    <Route path="/setup" element={<SetupPage onComplete={() => setSession({ configured: true, user: null })} />} />
+    <Route path="*" element={<Navigate to="/setup" replace />} />
+  </Routes>
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="*" element={<AppShell />} />
+      <Route path="/setup" element={<Navigate to={session.user ? '/' : '/login?setup=complete'} replace />} />
+      <Route path="/login" element={session.user ? <Navigate to="/" replace /> : <LoginPage onSignedIn={user => setSession({ configured: true, user })} />} />
+      <Route path="*" element={session.user ? <AppShell email={session.user.email} onSignedOut={() => setSession({ configured: true, user: null })} /> : <Navigate to="/login" replace />} />
     </Routes>
   )
 }
 
-function AppShell() {
+function AppShell({ email, onSignedOut }: { email: string; onSignedOut: () => void }) {
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  async function logout() {
+    setBusy(true)
+    try { await apiPost('/api/v1/auth/logout', {}); onSignedOut() }
+    catch { setError('Could not sign out. Please try again.') }
+    finally { setBusy(false) }
+  }
   return (
     <div className="app-shell">
       <header className="top-nav">
@@ -62,8 +101,11 @@ function AppShell() {
             </li>
           </ul>
         </nav>
+        <span>{email}</span>
+        <button disabled={busy} onClick={() => void logout()}>Sign out</button>
       </header>
       <main className="page-main">
+        {error && <p role="alert">{error}</p>}
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/deployments" element={<DeploymentsPage />} />

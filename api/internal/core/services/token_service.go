@@ -12,6 +12,7 @@ import (
 
 // KariClaims holds the stateless authorization data.
 type KariClaims struct {
+	SessionID   string   `json:"sid,omitempty"`
 	Rank        string   `json:"rank,omitempty"`
 	Permissions []string `json:"permissions,omitempty"`
 	Email       string   `json:"email,omitempty"`
@@ -81,6 +82,15 @@ func (s *TokenService) GenerateAccessToken(user *domain.User) (string, error) {
 	return accessToken, err
 }
 
+func (s *TokenService) GenerateSessionAccessToken(user *domain.User, sessionID uuid.UUID) (string, error) {
+	now := time.Now()
+	claims := KariClaims{SessionID: sessionID.String(), TokenType: "access",
+		Email: user.Email, Rank: user.Rank, Permissions: user.Permissions,
+		RegisteredClaims: jwt.RegisteredClaims{Subject: user.ID.String(), Issuer: "kari-brain",
+			IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute))}}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
+}
+
 func (s *TokenService) ValidateAccessToken(tokenString string) (*domain.UserClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &KariClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return s.secret, nil
@@ -96,7 +106,12 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (*domain.UserClai
 	if err != nil {
 		return nil, err
 	}
+	sessionID, err := uuid.Parse(claims.SessionID)
+	if err != nil {
+		return nil, fmt.Errorf("missing or invalid session")
+	}
 	return &domain.UserClaims{
+		SessionID:   sessionID,
 		UserID:      userID,
 		Subject:     userID,
 		Permissions: claims.Permissions,

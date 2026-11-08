@@ -67,3 +67,32 @@ host's change-management policy.
 
 The baseline verifies the binary and unit statically. It does not dynamically
 exercise privileged host mutation in CI.
+
+## First-run administrator and sessions
+
+Set the persistent encryption key and JWT secret before production startup. The
+setup form creates only the administrator; it does not rewrite deployment secrets,
+database URLs, or environment files. Development permits a fixed all-zero encryption
+key when `ENCRYPTION_KEY` is empty; never use this fallback in production.
+
+After `make compose-up`, open the frontend and retrieve the setup token with
+`./scripts/compose.sh logs api`. Treat API logs as operator-only: the bootstrap
+capability expires in 15 minutes and becomes unusable after setup commits. Restart
+an incomplete API with `./scripts/compose.sh restart api` for a new token. Setup
+completion persists in PostgreSQL across API/container restarts, independently of
+the former `setup.lock` file. Existing databases with users are treated as configured.
+The forward migration preserves existing users and password hashes. Legacy refresh
+tokens are not imported; existing users must sign in again once after upgrading.
+
+Production must terminate HTTPS at a trusted reverse proxy, preserve the original
+Host header, and configure `CORS_ALLOWED_ORIGINS` for the HTTPS frontend origin.
+Browser mutations require an allowed Origin; wildcard origins are unsupported.
+Only `KARI_ENV=development` permits non-Secure cookies for local HTTP development.
+Restarting the API does not sign users out. Refresh tokens are stored only as hashes,
+rotate atomically, and have an absolute seven-day session lifetime. Logout revokes
+the current session immediately; other signed-in devices retain their own sessions.
+
+`make topology-smoke` builds a disposable stack and runs the same browser journey
+as CI, deleting its database afterward. It requires the pinned Node/npm tools and
+downloads Chromium using the lockfile-pinned Playwright release. This command is
+also part of `make verify`.

@@ -2,3 +2,4 @@
 000002_identity.sql
 000003_resources.sql
 000004_seed.sql
+000005_authentication.sql

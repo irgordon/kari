@@ -6,96 +6,129 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
+	"errors"
+	"strings"
+	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
+	"github.com/google/uuid"
 	"github.com/irgordon/kari/api/internal/core/domain"
+	"golang.org/x/crypto/bcrypt"
 )
 
-// Dummy hash to equalize timing attacks. This is a valid bcrypt hash of the word "dummy".
-var dummyBcryptHash = []byte("$2a$10$wTf/0J/Q32r.5R7bU4X8uO4b2pE7Z9H5a0rY4q1w4s7c9d0x2z5eG")
+// Precomputed valid bcrypt hash keeps unknown-user and wrong-password paths comparable.
+var dummyBcryptHash = []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy")
 
-// AuthService orchestrates secure login flows and session generation.
 type AuthService struct {
-	repo         domain.UserRepository
-	tokenService *TokenService // 🛡️ SOLID: Inject the cryptographic engine
+	repo         domain.SessionRepository
+	tokenService *TokenService
 }
 
-// NewAuthService creates a new authentication orchestrator.
-func NewAuthService(repo domain.UserRepository, ts *TokenService) *AuthService {
-	return &AuthService{
-		repo:         repo,
-		tokenService: ts,
+func NewAuthService(repo domain.SessionRepository, ts *TokenService) *AuthService {
+	return &AuthService{repo: repo, tokenService: ts}
+}
+
+func refreshHash(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
+}
+
+func (s *AuthService) sessionTokens(user *domain.User, sessionID uuid.UUID) (*domain.TokenPair, error) {
+	access, err := s.tokenService.GenerateSessionAccessToken(user, sessionID)
+	if err != nil {
+		return nil, err
 	}
+	entropy := make([]byte, 32)
+	if _, err := rand.Read(entropy); err != nil {
+		return nil, err
+	}
+	return &domain.TokenPair{AccessToken: access, RefreshToken: base64.RawURLEncoding.EncodeToString(entropy)}, nil
 }
 
-// GenerateTokenPair mints a stateless Access Token and a stateful, hashed Opaque Refresh Token.
 func (s *AuthService) GenerateTokenPair(ctx context.Context, user *domain.User) (*domain.TokenPair, error) {
-	// 1. 🛡️ SOLID: Delegate stateless JWT minting to the TokenService
-	// (Assuming we refactored TokenService to just output the access token string)
-	accessToken, err := s.tokenService.GenerateAccessToken(user)
+	sessionID := uuid.New()
+	tokens, err := s.sessionTokens(user, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate access token: %w", err)
+		return nil, err
 	}
-
-	// 2. 🛡️ Secure Opaque Refresh Token Generation
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return nil, fmt.Errorf("failed to generate cryptographic entropy: %w", err)
-	}
-
-	// This is the raw string sent to the SvelteKit edge (and stored in the HttpOnly cookie)
-	refreshTokenPlain := base64.URLEncoding.EncodeToString(b)
-
-	// 3. 🛡️ Zero-Trust Storage: Hash before persistence
-	// We use SHA-256 to hash the refresh token. Because refresh tokens are 32 bytes
-	// of raw entropy, they are mathematically immune to rainbow table attacks,
-	// so a fast hashing algorithm like SHA-256 (instead of bcrypt) is safe and performant.
-	hash := sha256.Sum256([]byte(refreshTokenPlain))
-	refreshTokenHash := hex.EncodeToString(hash[:])
-
-	// We store the HASH in PostgreSQL, never the plaintext token.
-	err = s.repo.UpdateRefreshToken(ctx, user.ID, refreshTokenHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to persist refresh token hash: %w", err)
-	}
-
-	// We return the plaintext token to the handler so it can be sent to the user.
-	return &domain.TokenPair{AccessToken: accessToken, RefreshToken: refreshTokenPlain}, nil
+	err = s.repo.CreateSession(ctx, &domain.Session{ID: sessionID, UserID: user.ID,
+		RefreshHash: refreshHash(tokens.RefreshToken), ExpiresAt: time.Now().Add(7 * 24 * time.Hour)})
+	return tokens, err
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (*domain.TokenPair, *domain.User, error) {
-	user, err := s.repo.GetByEmail(ctx, email)
+	user, err := s.repo.GetByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
 	if err != nil {
 		_ = bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
-		return nil, nil, domain.ErrInvalidCredentials
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, nil, domain.ErrInvalidCredentials
-	}
-	if !user.IsActive {
-		return nil, nil, domain.ErrInvalidCredentials
-	}
-	tokenPair, err := s.GenerateTokenPair(ctx, user)
-	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, nil, domain.ErrInvalidCredentials
+		}
 		return nil, nil, err
 	}
-	return tokenPair, user, nil
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil || !user.IsActive {
+		return nil, nil, domain.ErrInvalidCredentials
+	}
+	tokens, err := s.GenerateTokenPair(ctx, user)
+	return tokens, user, err
 }
 
 func (s *AuthService) RefreshTokens(ctx context.Context, refreshToken string) (*domain.TokenPair, error) {
-	userID, err := s.tokenService.VerifyRefreshToken(refreshToken)
+	session, err := s.repo.FindSession(ctx, refreshHash(refreshToken))
 	if err != nil {
 		return nil, err
 	}
-	user, err := s.repo.GetByID(ctx, userID)
+	user, err := s.repo.GetByID(ctx, session.UserID)
 	if err != nil {
 		return nil, err
 	}
-	return s.GenerateTokenPair(ctx, user)
+	if !user.IsActive {
+		return nil, domain.ErrInvalidCredentials
+	}
+	tokens, err := s.sessionTokens(user, session.ID)
+	if err != nil {
+		return nil, err
+	}
+	// Compare-and-swap ensures only one concurrent refresh can consume this token.
+	err = s.repo.RotateSession(ctx, session.ID, session.RefreshHash, refreshHash(tokens.RefreshToken))
+	return tokens, err
 }
 
 func (s *AuthService) ValidateAccessToken(ctx context.Context, token string) (*domain.UserClaims, error) {
-	return s.tokenService.ValidateAccessToken(token)
+	claims, err := s.tokenService.ValidateAccessToken(token)
+	if err != nil {
+		return nil, domain.ErrInvalidCredentials
+	}
+	active, err := s.repo.SessionActive(ctx, claims.SessionID, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if !active {
+		return nil, domain.ErrInvalidCredentials
+	}
+	// Read current permissions so role changes take effect without waiting for JWT expiry.
+	user, err := s.repo.GetByID(ctx, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	claims.Permissions = user.Permissions
+	return claims, nil
+}
+
+func (s *AuthService) CurrentUser(ctx context.Context, token string) (*domain.User, error) {
+	claims, err := s.ValidateAccessToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetByID(ctx, claims.UserID)
+}
+
+func (s *AuthService) Logout(ctx context.Context, refreshToken, accessToken string) error {
+	if refreshToken == "" && accessToken == "" {
+		return nil
+	}
+	var sessionID, userID uuid.UUID
+	// A signed access token identifies the session even if refresh just rotated.
+	if claims, err := s.tokenService.ValidateAccessToken(accessToken); err == nil {
+		sessionID, userID = claims.SessionID, claims.UserID
+	}
+	return s.repo.RevokeSession(ctx, refreshHash(refreshToken), sessionID, userID)
 }

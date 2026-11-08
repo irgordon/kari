@@ -9,7 +9,25 @@ main() {
   trap cleanup EXIT
   start_topology
   verify_topology_health
+  verify_browser_journey
   echo "Topology healthy; privileged native agent was not started by this smoke test."
+}
+
+verify_browser_journey() {
+  local frontend_port
+  frontend_port="$(wait_for_service_port frontend 8080)"
+  export KARI_E2E_URL="http://127.0.0.1:${frontend_port}"
+  KARI_E2E_SETUP_TOKEN="$("$ROOT_DIR/scripts/compose.sh" logs --no-log-prefix api | jq --raw-input --raw-output 'fromjson? | .setup_token // empty')"
+  export KARI_E2E_SETUP_TOKEN
+  [[ -n "$KARI_E2E_SETUP_TOKEN" ]] || fail "fresh API did not issue a setup capability"
+  (
+    cd "$ROOT_DIR/frontend"
+    [[ "$(node --version)" == "v${NODE_VERSION}" ]] || fail "Node.js toolchain mismatch"
+    [[ "$(npm --version)" == "$NPM_VERSION" ]] || fail "npm toolchain mismatch"
+    npm ci
+    npm exec -- playwright install --with-deps chromium
+    npm run test:e2e
+  )
 }
 
 configure_smoke_environment() {

@@ -50,8 +50,9 @@ tree object and canonical SHA-256 manifest with:
 Historical filesystem hashes, including the local-v1 `8aaffb0a…` value, are not
 authorization identities.
 
-The React source currently has no real frontend test files, so the baseline does
-not invent or run a placeholder frontend test command.
+The topology stage runs pinned Playwright browser tests against the real frontend,
+API, and a fresh PostgreSQL database. Chromium and its system dependencies are
+installed by that stage; no API or database responses are mocked.
 
 ## Supported topology
 
@@ -80,6 +81,17 @@ The migration service initializes a blank database before the API starts. The
 development environment sets `KARI_REQUIRE_AGENT=false`; readiness therefore
 proves the database/API boundary but does not claim a running privileged agent.
 
+Open `http://localhost:3000`. On first run, Kari opens administrator setup.
+Read the one-time setup token from the API startup logs with
+`./scripts/compose.sh logs api`, enter it with your email and a strong password,
+then sign in. The token expires after 15 minutes; `./scripts/compose.sh restart api`
+issues a new token only while setup is incomplete. Setup commits the administrator
+and a permanent completion marker together in PostgreSQL and needs no restart.
+
+Session cookies are HttpOnly. Refresh tokens rotate on use and expire after seven
+days; signing out revokes the session, including its outstanding access tokens.
+Production requires HTTPS at the frontend reverse proxy and secure session cookies.
+
 Stop the topology with:
 
 ```bash
@@ -106,7 +118,8 @@ installation and database operations are in [docs/OPERATIONS.md](docs/OPERATIONS
 
 This milestone does not repair or certify:
 
-1. Authentication and authorization lifecycle behavior.
+1. Account recovery and authentication/authorization hardening beyond the tested
+   first-run and session lifecycle.
 2. Deployment state transitions, recovery, or terminal outcomes.
 3. The breadth or hardening of the privileged-agent RPC surface.
 

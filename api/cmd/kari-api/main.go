@@ -68,46 +68,39 @@ func main() {
 	defer grpcConn.Close()
 	agentClient := agent.NewSystemAgentClient(grpcConn)
 
-	// --- 3. Setup Mode Detection ---
-	// 🛡️ The Setup Guard determines whether the system is configured.
-	// In setup mode, crypto and DB are not yet available.
-	lockPath := "/opt/kari/setup.lock"
-
-	// Signal channel for shutdown (used by setup lockdown)
+	// --- 3. Transactional first-run setup ---
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	setupHandler := handlers.NewSetupHandler(
-		agentClient, logger, cfg.JWTSecret, lockPath,
-		func() { stop <- syscall.SIGTERM }, // Shutdown trigger for lockdown
-	)
-
-	// 🛡️ If in setup mode, print the transient setup token and skip crypto/DB init
-	if !setupHandler.IsLocked() {
-		setupToken, tokenErr := handlers.GenerateSetupToken(cfg.JWTSecret)
-		if tokenErr != nil {
-			logger.Error("FATAL: Cannot generate setup token", "error", tokenErr)
-			os.Exit(1)
-		}
-		logger.Info("🔧 SETUP MODE: System is unconfigured. Access the wizard at:")
-		logger.Info("   http://localhost:" + cfg.Port + "/setup?token=" + setupToken)
+	userRepo := postgres.NewUserRepo(dbPool)
+	configured, err := userRepo.IsConfigured(context.Background())
+	if err != nil {
+		logger.Error("FATAL: Cannot check setup state", "error", err)
+		os.Exit(1)
 	}
-
-	// --- 4. Hardened Dependency Injection ---
-	// 🛡️ Zero-Trust: Crypto failure at boot is FATAL (only after setup).
-	var cryptoService *crypto.AESCryptoService
-	if setupHandler.IsLocked() {
-		cryptoService, err = crypto.NewAESCryptoService(cfg.MasterKeyHex)
+	setupToken := ""
+	if !configured {
+		setupToken, err = handlers.GenerateSetupToken()
 		if err != nil {
-			logger.Error("FATAL: Cryptographic initialization failed", "error", err)
+			logger.Error("FATAL: Cannot generate setup token", "error", err)
 			os.Exit(1)
 		}
+		// This local operator capability is never placed in a URL or returned by the API.
+		logger.Info("Open the frontend /setup page. Setup token expires in 15 minutes.", "setup_token", setupToken)
+	}
+	setupHandler := handlers.NewSetupHandler(userRepo, logger, setupToken)
+	if cfg.MasterKeyHex == "" && cfg.Environment == "development" {
+		// Development-only fallback. Production always requires its persistent operator-supplied key.
+		cfg.MasterKeyHex = "0000000000000000000000000000000000000000000000000000000000000000"
+	}
+	cryptoService, err := crypto.NewAESCryptoService(cfg.MasterKeyHex)
+	if err != nil {
+		logger.Error("FATAL: Cryptographic initialization failed", "error", err)
+		os.Exit(1)
 	}
 
 	// Repositories
 	appRepo := postgres.NewApplicationRepo(dbPool)
 	deployRepo := postgres.NewPostgresDeploymentRepository(dbPool)
-	userRepo := postgres.NewUserRepo(dbPool)
 	auditRepo := postgres.NewAuditRepository(dbPool)
 
 	// 🛡️ Global Telemetry Hub (Memory Bus)
@@ -119,7 +112,7 @@ func main() {
 	roleService := services.NewRoleService(userRepo, logger)
 
 	// Handlers
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, cfg.Environment != "development")
 	deployHandler := handlers.NewDeploymentHandler(deployRepo, cryptoService, telemetryHub)
 
 	authMiddleware := middleware.NewAuthMiddleware(authService, roleService, userRepo, logger)

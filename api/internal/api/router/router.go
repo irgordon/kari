@@ -5,6 +5,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -52,6 +54,29 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 
 	// 🔒 Force all connections to use TLS/SSL and inject HSTS headers
 	r.Use(auth_middleware.EnforceTLS)
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "GET" || r.Method == "HEAD" || r.Method == "OPTIONS" || strings.HasPrefix(r.URL.Path, "/api/v1/webhooks/") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			origin := r.Header.Get("Origin")
+			parsed, err := url.Parse(origin)
+			allowed := err == nil && parsed.Host != "" && parsed.Host == r.Host && (parsed.Scheme == "http" || parsed.Scheme == "https")
+			for _, configured := range cfg.AllowedOrigins {
+				allowed = allowed || origin == configured
+			}
+			if cfg.AuthHandler.SecureCookies && !strings.HasPrefix(origin, "https://") {
+				allowed = false
+			}
+			if !allowed {
+				w.Header().Set("Content-Type", "application/json")
+				http.Error(w, `{"message":"Request origin is not allowed"}`, http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	// Strict CORS Configuration
 	r.Use(cors.Handler(cors.Options{
@@ -70,14 +95,12 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	r.Route("/api/v1", func(r chi.Router) {
 
 		// ---------------------------------------------------------------------
-		// Setup Wizard Routes (Only accessible before setup.lock exists)
+		// Setup routes are gated by the database installation marker.
 		// ---------------------------------------------------------------------
 		if cfg.SetupHandler != nil {
+			r.Get("/setup/status", cfg.SetupHandler.Status)
 			r.Route("/setup", func(r chi.Router) {
 				r.Use(cfg.SetupHandler.SetupAuth)
-				r.Get("/test-muscle", cfg.SetupHandler.TestMuscle)
-				r.Post("/test-db", cfg.SetupHandler.TestDB)
-				r.Post("/generate-key", cfg.SetupHandler.GenerateKey)
 				r.Post("/finalize", cfg.SetupHandler.Finalize)
 			})
 		}
@@ -88,6 +111,8 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		r.Group(func(r chi.Router) {
 			r.Post("/auth/login", cfg.AuthHandler.Login)
 			r.Post("/auth/refresh", cfg.AuthHandler.Refresh)
+			r.Post("/auth/logout", cfg.AuthHandler.Logout)
+			r.Get("/auth/me", cfg.AuthHandler.Me)
 
 			if cfg.AppHandler != nil {
 				r.Post("/webhooks/github/{id}", cfg.AppHandler.HandleGitHubWebhook)
