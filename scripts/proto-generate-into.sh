@@ -14,9 +14,20 @@ main() {
 }
 
 require_generators() {
+  source "$ROOT_DIR/toolchain.env"
   command -v protoc >/dev/null
   command -v protoc-gen-go >/dev/null
   command -v protoc-gen-go-grpc >/dev/null
+  require_version "protoc" "libprotoc $PROTOC_DISPLAY_VERSION" "$(protoc --version)"
+  require_version "protoc-gen-go" "protoc-gen-go $PROTOC_GEN_GO_VERSION" "$(protoc-gen-go --version)"
+  require_version "protoc-gen-go-grpc" "protoc-gen-go-grpc ${PROTOC_GEN_GO_GRPC_VERSION#v}" "$(protoc-gen-go-grpc --version)"
+}
+
+require_version() {
+  if [[ "$2" != "$3" ]]; then
+    echo "ERROR: $1 version mismatch: expected '$2', observed '$3'" >&2
+    exit 1
+  fi
 }
 
 prepare_output_directories() {
