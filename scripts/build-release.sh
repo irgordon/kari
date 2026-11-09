@@ -30,7 +30,7 @@ docker run --rm --volume "$ROOT_DIR/agent:/src/agent:ro" --volume "$ROOT_DIR/pro
   --env PROTOC=/protoc/bin/protoc --env CARGO_TARGET_DIR=/target --workdir /src/agent "$RUST_BUILDER_IMAGE" \
   sh -c 'cargo build --release --locked && cp /target/release/kari-agent /out/kari-agent'
 docker pull "$POSTGRES_IMAGE"
-docker save "kari-api:$VERSION" "kari-frontend:$VERSION" "$POSTGRES_IMAGE" --output "$OUT/images.tar"
+docker save "kari-api:$VERSION" "kari-frontend:$VERSION" "$POSTGRES_IMAGE" "$NODE_BUILDER_IMAGE" --output "$OUT/images.tar"
 cp "$ROOT_DIR/docker-compose.yml" "$ROOT_DIR/toolchain.env" "$OUT/"
 cp "$ROOT_DIR/deploy/systemd/kari-agent.service" "$ROOT_DIR/deploy/systemd/kari-panel.service" "$OUT/"
 cp "$ROOT_DIR/frontend/nginx.conf" "$OUT/frontend.conf"

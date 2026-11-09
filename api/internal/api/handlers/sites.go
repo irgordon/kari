@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/irgordon/kari/api/internal/core/domain"
 	"github.com/irgordon/kari/api/internal/core/services"
+	"github.com/irgordon/kari/api/internal/grpc/rustagent"
 )
 
 type SiteHandler struct{ Service *services.Sites }
@@ -36,17 +37,25 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == "GET" && id == uuid.Nil:
 		result, err = h.Service.List(r.Context(), claims.Subject)
+	case r.Method == "GET" && chi.URLParam(r, "deployment") == "":
+		result, err = h.Service.Get(r.Context(), claims.Subject, id)
 	case r.Method == "POST" && id == uuid.Nil:
 		var input struct {
 			Domain  string `json:"domain_name"`
 			RepoURL string `json:"repo_url"`
 			Branch  string `json:"branch"`
+			Runtime string `json:"runtime"`
 		}
 		if json.NewDecoder(r.Body).Decode(&input) != nil {
 			http.Error(w, `{"message":"Invalid site input"}`, 400)
 			return
 		}
-		result, err = h.Service.Create(r.Context(), claims.Subject, input.Domain, input.RepoURL, input.Branch)
+		var site *services.Site
+		site, err = h.Service.Create(r.Context(), claims.Subject, input.Domain, input.RepoURL, input.Branch, input.Runtime)
+		result = site
+		if err == nil {
+			_, err = h.Service.Agent.SiteRuntime(r.Context(), &rustagent.RuntimeRequest{SiteId: site.ID.String(), DomainName: site.Domain, Action: "initialize"})
+		}
 		status = 201
 	case chi.URLParam(r, "deployment") != "":
 		deployment, parseErr := uuid.Parse(chi.URLParam(r, "deployment"))

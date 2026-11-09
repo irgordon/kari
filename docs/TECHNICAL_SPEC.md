@@ -95,6 +95,11 @@ pagination limits or sub-millisecond performance without evidence.
 ## 5. Application Runtimes and Host Isolation
 
 Application processes must run under their intended unprivileged host identity.
+The supported application runtime is Node.js 24.19.0 in a per-site constrained
+container, using the existing digest-pinned Node image and locked npm installs.
+Builds and runtime code do not execute with agent privileges. Published source
+is read-only, persistent writes are scoped to site data, and runtime ports bind
+only to host loopback. Other runtime stacks remain unsupported.
 Restrict application filesystem access and scope destructive operations to
 approved paths. Use systemd service restrictions appropriate to the operation.
 Do not equate a generated unit or Unix permissions with container-level isolation.
@@ -111,27 +116,36 @@ and report failures and terminal outcomes accurately. Disable repository hooks
 where untrusted repositories are cloned. Bound log transport and make any loss
 of log data explicit.
 
-Deployment state correctness, recovery, and log streaming remain recovery work.
+The supported site worker requires explicit host acknowledgement, retains a
+previous publication on replacement failure, and persists bounded results.
+Node activation checks the application and Nginx routing revision before retiring
+the previous runtime. Closing a viewer does not cancel deployment. General-purpose
+legacy deployment state correctness, recovery, and log streaming remain recovery work.
 Do not describe the current implementation as guaranteeing zero-downtime swaps,
 safe rollback, or lossless logs solely because those behaviors were intended in
 the earlier design.
 
 ## 7. Network and Routing
 
-The supported first hosting workflow is prepared static content from public
-HTTPS Git. Owner-scoped site operations create the domain/application binding
+Supported hosting includes prepared static content and Node.js applications from
+unauthenticated HTTPS Git. Owner-scoped site operations create the domain/application binding
 transactionally, queue publication, and expose persisted results. The native
 agent fetches under a dedicated unprivileged identity, publishes ordinary public
-files into root-managed releases, and activates host Nginx. No repository build
-commands or application runtime code execute in this path. General-purpose
-deployment RPCs and application runtimes remain outside this supported workflow.
+files into managed releases, and activates host Nginx. Node npm operations execute
+inside constrained containers with fixed arguments. General-purpose legacy
+deployment RPCs remain outside this supported workflow.
 
 Site TLS supports ACME HTTP-01 or a supplied matching certificate and key. ACME
 challenge operations are bound to a site/domain and token rather than an
 arbitrary filesystem path. Activation validates Nginx, preserves the previous
 configuration on candidate failure, and waits for the expected served certificate.
-Renewal is manual. Dashboard values describe persisted hosting state, not live
-uptime or resource measurements. This is the first P2 increment, not full P2.
+Renewal is manual. Dashboard values describe persisted hosting state; System
+reports actual host measurements when refreshed. Separate customer PostgreSQL
+instances use non-superuser application roles. Site data/SFTP is confined to each
+website; manual snapshots pair files, database, environment, release, and TLS.
+Restore authorization is explicit, and fresh database credentials replace the
+old ones. These features do not certify broad tenant isolation or the legacy RPC
+surface. See operations for the supported bounds and remaining release gates.
 
 The frontend Nginx container serves static assets and proxies `/api/` to the Go
 API. Host application proxy configuration is a separate privileged operation.

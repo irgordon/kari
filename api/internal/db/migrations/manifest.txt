@@ -5,3 +5,4 @@
 000005_authentication.sql
 000006_email_access.sql
 000007_mfa.sql
+000008_workloads.sql

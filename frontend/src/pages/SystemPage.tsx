@@ -1,177 +1,33 @@
-import { useEffect, useRef, useState } from 'react'
-import { apiGet } from '../lib/api'
+import { useEffect, useState } from 'react'
+import { apiGet, apiPost } from '../lib/api'
 
-interface SystemStats {
-  active_jails: number
-  cpu_usage: number
-  ram_usage: number
-  uptime_seconds: number
-}
-
-interface LogEntry {
-  id: string
-  level: string
-  msg: string
-  service: string
-  ts: string
-}
-
-const defaultStats: SystemStats = {
-  active_jails: 0,
-  cpu_usage: 0,
-  ram_usage: 0,
-  uptime_seconds: 0,
-}
-
-function formatUptime(seconds: number): string {
-  const days = Math.floor(seconds / (24 * 3600))
-  const hours = Math.floor((seconds % (24 * 3600)) / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  return days > 0 ? `${days}d ${hours}h` : `${hours}h ${minutes}m`
-}
-
-function levelClass(level: string): string {
-  switch (level) {
-    case 'ERROR': return 'log-error'
-    case 'WARN': return 'log-warn'
-    case 'DEBUG': return 'log-debug'
-    default: return 'log-info'
-  }
-}
-
+type Stats = { cpu_usage_percent: number; memory_total_bytes: number; memory_used_bytes: number; disk_total_bytes: number; disk_available_bytes: number; uptime_seconds: number; agent_version: string }
 export function SystemPage() {
-  const [stats, setStats] = useState<SystemStats>(defaultStats)
-  const [logs, setLogs] = useState<LogEntry[]>([])
-  const [filterQuery, setFilterQuery] = useState('')
-  const [selectedLevel, setSelectedLevel] = useState('ALL')
-  const [isPaused, setIsPaused] = useState(false)
-  const [statsError, setStatsError] = useState<string | null>(null)
-  const isPausedRef = useRef(isPaused)
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [services, setServices] = useState<Record<string, string>>({})
+  const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
+  const [busy, setBusy] = useState(false)
   useEffect(() => {
-    isPausedRef.current = isPaused
-  }, [isPaused])
-
-  useEffect(() => {
-    void apiGet<SystemStats>('/api/v1/system/stats')
-      .then(setStats)
-      .catch((err) => {
-        console.error('Failed to load system stats', err)
-        setStatsError('Failed to load system stats.')
-      })
-  }, [])
-
-  useEffect(() => {
-    const es = new EventSource('/api/v1/system/logs/stream')
-    es.onmessage = (event: MessageEvent) => {
-      if (isPausedRef.current) return
-      try {
-        const entry: LogEntry = JSON.parse(event.data as string)
-        setLogs((prev) => [entry, ...prev].slice(0, 500))
-      } catch {
-        // ignore malformed log entries
-      }
-    }
-    es.onerror = (err) => {
-      console.error('System log stream error', err)
-      es.close()
-    }
-    return () => {
-      es.close()
-    }
-  }, [])
-
-  const filteredLogs = logs.filter((log) => {
-    const matchesQuery = log.msg.toLowerCase().includes(filterQuery.toLowerCase())
-    const matchesLevel = selectedLevel === 'ALL' || log.level === selectedLevel
-    return matchesQuery && matchesLevel
-  })
-
-  return (
-    <div className="page stack">
-      <div className="page-title">
-        <h1>System</h1>
-        <p>Live infrastructure telemetry and backplane log stream.</p>
-      </div>
-
-      {statsError ? <div className="alert error">{statsError}</div> : null}
-
-      {/* Stats */}
-      <section className="metrics-grid">
-        <article className="card metric-card">
-          <h2>Active Jails</h2>
-          <p className="metric-value">{stats.active_jails}</p>
-        </article>
-        <article className="card metric-card">
-          <h2>CPU Load</h2>
-          <p className="metric-value">{stats.cpu_usage}%</p>
-        </article>
-        <article className="card metric-card">
-          <h2>Memory</h2>
-          <p className="metric-value">{stats.ram_usage}%</p>
-        </article>
-        <article className="card metric-card">
-          <h2>Uptime</h2>
-          <p className="metric-value">{formatUptime(stats.uptime_seconds)}</p>
-        </article>
-      </section>
-
-      {/* Live log stream */}
-      <section className="card stack">
-        <div className="section-header">
-          <h2>System Backplane Logs</h2>
-          <div className="inline-actions">
-            <span className="muted small">
-              {isPaused ? 'Paused' : '● Live'} · {filteredLogs.length} buffered
-            </span>
-            <button type="button" onClick={() => setIsPaused((p) => !p)}>
-              {isPaused ? 'Resume' : 'Pause'}
-            </button>
-            <button type="button" onClick={() => setLogs([])}>
-              Clear
-            </button>
-          </div>
-        </div>
-
-        <div className="form-grid">
-          <label className="field">
-            <span>Search</span>
-            <input
-              type="text"
-              placeholder="Filter log messages…"
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>Level</span>
-            <select
-              value={selectedLevel}
-              onChange={(e) => setSelectedLevel(e.target.value)}
-            >
-              <option value="ALL">All Levels</option>
-              <option value="INFO">Info</option>
-              <option value="WARN">Warning</option>
-              <option value="ERROR">Error</option>
-              <option value="DEBUG">Debug</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="terminal-output" style={{ height: '400px', overflowY: 'auto' }}>
-          {filteredLogs.length === 0 ? (
-            <span className="muted">Listening for system events…</span>
-          ) : (
-            filteredLogs.map((log) => (
-              <div key={log.id} className={`log-line ${levelClass(log.level)}`}>
-                <span className="log-ts">[{(() => { const d = new Date(log.ts); return isNaN(d.getTime()) ? log.ts : d.toLocaleTimeString() })()}]</span>
-                <span className={`log-level ${levelClass(log.level)}`}>{log.level}</span>
-                <span className="log-service">{log.service}:</span>
-                <span className="log-msg">{log.msg}</span>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-    </div>
-  )
+    let cancelled = false
+    Promise.all([apiGet<Stats>('/api/v1/system/stats'), apiGet<{ services: Record<string, string> }>('/api/v1/system/services')]).then(([metrics, state]) => {
+      if (!cancelled) { setStats(metrics); setServices(state.services); setError('') }
+    }).catch(e => { if (!cancelled) setError(e.message) })
+    return () => { cancelled = true }
+  }, [attempt])
+  const gib = (bytes: number) => (bytes / 1073741824).toFixed(2)
+  return <div className="page stack"><h1>Server operations</h1><p>Native-agent measurements taken when refreshed. Application logs and controls are under each website. Server management permission is required.</p>
+    {error && <div role="alert" className="alert error">{error}</div>}
+    <button onClick={() => setAttempt(v => v + 1)}>Refresh server state</button>
+    {stats ? <section className="metrics-grid">
+      <article className="card"><h2>CPU</h2><p>{stats.cpu_usage_percent.toFixed(1)}%</p></article>
+      <article className="card"><h2>Memory</h2><p>{gib(stats.memory_used_bytes)} / {gib(stats.memory_total_bytes)} GiB</p></article>
+      <article className="card"><h2>Root disk available</h2><p>{gib(stats.disk_available_bytes)} / {gib(stats.disk_total_bytes)} GiB</p></article>
+      <article className="card"><h2>Uptime</h2><p>{Math.floor(stats.uptime_seconds / 3600)} hours · agent {stats.agent_version}</p></article>
+    </section> : <p>Server measurements are unavailable.</p>}
+    <section className="card stack"><h2>Host services</h2><ul>{Object.entries(services).map(([name, status]) => <li key={name}>{name}: {status}</li>)}</ul>
+      <p>Only Nginx reload is exposed here; the configuration must validate first. SSH, Docker, and agent lifecycle remain local operator responsibilities.</p>
+      <button disabled={busy} onClick={async () => { setBusy(true); try { await apiPost('/api/v1/system/services', { service: 'nginx', action: 'reload' }); setAttempt(v => v + 1) } catch (e) { setError(e instanceof Error ? e.message : 'Reload failed') } finally { setBusy(false) } }}>Validate and reload Nginx</button>
+    </section>
+  </div>
 }

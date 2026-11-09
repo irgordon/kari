@@ -105,22 +105,27 @@ agent probe in addition to PostgreSQL.
 
 ## Website hosting
 
-On a native-agent installation, open **Websites** to create a static site from a
-public HTTPS Git repository and publish its prepared `index.html` and assets.
+On a native-agent installation, open **Websites** to create a static site or
+Node.js application from an unauthenticated HTTPS Git repository.
 Point the domain to the server, then configure TLS through ACME or a supplied
 certificate/key pair. Publication results survive page reloads; the dashboard
 reports saved hosting state rather than invented server metrics.
 
+**Manage website** provides Node environment and lifecycle controls, a separate
+customer PostgreSQL database, site data files, confined key-only SFTP, and manual
+workload backup/restore. **System** reports actual host measurements and service
+state and provides validated Nginx reload. Node uses the pinned 24.19.0 runtime;
+other application stacks and arbitrary host commands are not supported.
+
 See [website operations](docs/OPERATIONS.md#static-websites) and the
-[P2 implementation summary](docs/P2_IMPLEMENTATION_SUMMARY.md) for supported
-inputs, validation, and remaining P2 work. Arbitrary builds, application runtimes,
-customer databases, files/SFTP, and workload backup/restore are not provided by
-this first P2 increment.
+[P2 completion summary](docs/P2_COMPLETION_SUMMARY.md) for supported inputs,
+limits, file-by-file reasoning, validation, and remaining production release gates.
 
 ## Production boundary
 
 The supported host is a dedicated Ubuntu 24.04 server with rootful Docker,
-Compose, Nginx, Git, OpenSSL, systemd, and UID/GID 1001 available. Provide a valid TLS certificate
+Compose, Nginx, Git, OpenSSL, OpenSSH server/client tools, systemd, and UID/GID 1001
+available. Provide a valid TLS certificate
 and root-owned mode-0600 private key for the panel hostname. The installer creates
 private credentials, installs the native agent and panel services, binds internal
 HTTP ports to loopback, and configures the HTTPS proxy.

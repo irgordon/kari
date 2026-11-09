@@ -38,13 +38,20 @@ type Site struct {
 	RepoURL                string    `json:"repo_url"`
 	Branch                 string    `json:"branch"`
 	Status                 string    `json:"status"`
+	Runtime                string    `json:"runtime"`
 	SSLStatus              string    `json:"ssl_status"`
 	ExpiresAt              time.Time `json:"expires_at"`
 	LatestDeploymentID     *string   `json:"latest_deployment_id"`
 	LatestDeploymentStatus *string   `json:"latest_deployment_status"`
 }
 
-func (s *Sites) Create(ctx context.Context, owner uuid.UUID, hostname, repository, branch string) (*Site, error) {
+func (s *Sites) Create(ctx context.Context, owner uuid.UUID, hostname, repository, branch, runtime string) (*Site, error) {
+	if runtime == "" {
+		runtime = "static"
+	}
+	if runtime != "static" && runtime != "nodejs" {
+		return nil, fmt.Errorf("%w: supported runtimes are static and nodejs", ErrSiteInput)
+	}
 	hostname = strings.ToLower(strings.TrimSpace(hostname))
 	panel, _ := url.Parse(s.PanelURL)
 	if panel != nil && strings.EqualFold(hostname, panel.Hostname()) {
@@ -76,7 +83,7 @@ func (s *Sites) Create(ctx context.Context, owner uuid.UUID, hostname, repositor
 		}
 		return nil, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO applications(id,name,domain_id,app_type,owner_id,app_user,repo_url,branch,build_command,start_command,port) VALUES($1,$2,$3,'static',$4,$5,$6,$7,'','',8080)`, id, hostname, domainID, owner, "ks-"+strings.ReplaceAll(id.String(), "-", "")[:24], repository, branch)
+	_, err = tx.Exec(ctx, `INSERT INTO applications(id,name,domain_id,app_type,owner_id,app_user,repo_url,branch,build_command,start_command,port) VALUES($1,$2,$3,$8,$4,$5,$6,$7,'','',8080)`, id, hostname, domainID, owner, "ks-"+strings.ReplaceAll(id.String(), "-", "")[:24], repository, branch, runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +94,7 @@ func (s *Sites) Create(ctx context.Context, owner uuid.UUID, hostname, repositor
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return &Site{ID: id, Domain: hostname, RepoURL: repository, Branch: branch, Status: "stopped", SSLStatus: "none", ExpiresAt: time.Unix(0, 0)}, nil
+	return &Site{ID: id, Domain: hostname, RepoURL: repository, Branch: branch, Runtime: runtime, Status: "stopped", SSLStatus: "none", ExpiresAt: time.Unix(0, 0)}, nil
 }
 
 // The supported topology has one API worker. After a restart, a host operation
@@ -101,22 +108,28 @@ func (s *Sites) RecoverInterrupted(ctx context.Context) error {
 	defer tx.Rollback(ctx)
 	_, err = tx.Exec(ctx, `WITH interrupted AS (
  UPDATE deployments p SET status='failed',updated_at=NOW() FROM applications a
- WHERE p.app_id=a.id AND a.app_type='static' AND p.status='running' RETURNING p.id)
+ WHERE p.app_id=a.id AND a.app_type IN ('static','nodejs') AND p.status='running' RETURNING p.id)
  INSERT INTO deployment_logs(deployment_id,content) SELECT id,'Panel restarted before publication was acknowledged. Inspect the site and publish again.' FROM interrupted`)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `UPDATE domains d SET ssl_status=CASE WHEN expires_at>NOW() THEN 'active' ELSE 'failed' END FROM applications a WHERE d.app_id=a.id AND a.app_type='static' AND d.ssl_status IN ('pending','renewing')`)
+	_, err = tx.Exec(ctx, `UPDATE domains d SET ssl_status=CASE WHEN expires_at>NOW() THEN 'active' ELSE 'failed' END FROM applications a WHERE d.app_id=a.id AND a.app_type IN ('static','nodejs') AND d.ssl_status IN ('pending','renewing')`)
 	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE applications SET operation='' WHERE operation<>''`); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE customer_databases SET status='failed' WHERE status='provisioning'`); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-const sitesSelect = `SELECT a.id,d.domain_name,a.repo_url,a.branch,a.status,d.ssl_status,d.expires_at,
+const sitesSelect = `SELECT a.id,d.domain_name,a.repo_url,a.branch,a.status,d.ssl_status,d.expires_at,a.app_type,
  (SELECT p.id::text FROM deployments p WHERE p.app_id=a.id ORDER BY p.created_at DESC LIMIT 1),
  (SELECT p.status FROM deployments p WHERE p.app_id=a.id ORDER BY p.created_at DESC LIMIT 1)
- FROM applications a JOIN domains d ON d.id=a.domain_id WHERE a.owner_id=$1 AND d.user_id=$1 AND a.app_type='static'`
+ FROM applications a JOIN domains d ON d.id=a.domain_id WHERE a.owner_id=$1 AND d.user_id=$1 AND a.app_type IN ('static','nodejs')`
 
 func (s *Sites) List(ctx context.Context, owner uuid.UUID) ([]Site, error) {
 	rows, err := s.DB.Query(ctx, sitesSelect+` ORDER BY a.created_at DESC LIMIT 100`, owner)
@@ -127,7 +140,7 @@ func (s *Sites) List(ctx context.Context, owner uuid.UUID) ([]Site, error) {
 	records := make([]Site, 0)
 	for rows.Next() {
 		var v Site
-		if err = rows.Scan(&v.ID, &v.Domain, &v.RepoURL, &v.Branch, &v.Status, &v.SSLStatus, &v.ExpiresAt, &v.LatestDeploymentID, &v.LatestDeploymentStatus); err != nil {
+		if err = rows.Scan(&v.ID, &v.Domain, &v.RepoURL, &v.Branch, &v.Status, &v.SSLStatus, &v.ExpiresAt, &v.Runtime, &v.LatestDeploymentID, &v.LatestDeploymentStatus); err != nil {
 			return nil, err
 		}
 		records = append(records, v)
@@ -135,9 +148,9 @@ func (s *Sites) List(ctx context.Context, owner uuid.UUID) ([]Site, error) {
 	return records, rows.Err()
 }
 
-func (s *Sites) get(ctx context.Context, owner, id uuid.UUID) (*Site, error) {
+func (s *Sites) Get(ctx context.Context, owner, id uuid.UUID) (*Site, error) {
 	var v Site
-	err := s.DB.QueryRow(ctx, sitesSelect+` AND a.id=$2`, owner, id).Scan(&v.ID, &v.Domain, &v.RepoURL, &v.Branch, &v.Status, &v.SSLStatus, &v.ExpiresAt, &v.LatestDeploymentID, &v.LatestDeploymentStatus)
+	err := s.DB.QueryRow(ctx, sitesSelect+` AND a.id=$2`, owner, id).Scan(&v.ID, &v.Domain, &v.RepoURL, &v.Branch, &v.Status, &v.SSLStatus, &v.ExpiresAt, &v.Runtime, &v.LatestDeploymentID, &v.LatestDeploymentStatus)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = domain.ErrNotFound
 	}
@@ -150,8 +163,8 @@ func (s *Sites) Deploy(ctx context.Context, owner, id uuid.UUID) (string, error)
 		return "", err
 	}
 	defer tx.Rollback(ctx)
-	var hostname, repo, branch, ssl string
-	err = tx.QueryRow(ctx, `SELECT d.domain_name,a.repo_url,a.branch,d.ssl_status FROM applications a JOIN domains d ON d.id=a.domain_id WHERE a.id=$1 AND a.owner_id=$2 AND d.user_id=$2 AND a.app_type='static' FOR UPDATE OF a,d`, id, owner).Scan(&hostname, &repo, &branch, &ssl)
+	var hostname, repo, branch, ssl, runtime, operation string
+	err = tx.QueryRow(ctx, `SELECT d.domain_name,a.repo_url,a.branch,d.ssl_status,a.app_type,a.operation FROM applications a JOIN domains d ON d.id=a.domain_id WHERE a.id=$1 AND a.owner_id=$2 AND d.user_id=$2 AND a.app_type IN ('static','nodejs') FOR UPDATE OF a,d`, id, owner).Scan(&hostname, &repo, &branch, &ssl, &runtime, &operation)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", domain.ErrNotFound
 	}
@@ -163,11 +176,11 @@ func (s *Sites) Deploy(ctx context.Context, owner, id uuid.UUID) (string, error)
 	if err != nil {
 		return "", err
 	}
-	if busy || ssl == "pending" || ssl == "renewing" {
+	if busy || operation != "" || ssl == "pending" || ssl == "renewing" {
 		return "", ErrSiteBusy
 	}
 	deploymentID := uuid.New().String()
-	_, err = tx.Exec(ctx, `INSERT INTO deployments(id,app_id,domain_name,repo_url,branch,build_command,target_port,status) VALUES($1,$2,$3,$4,$5,'',8080,'pending')`, deploymentID, id, hostname, repo, branch)
+	_, err = tx.Exec(ctx, `INSERT INTO deployments(id,app_id,domain_name,repo_url,branch,build_command,target_port,status,env_vars) VALUES($1,$2,$3,$4,$5,'',8080,'pending',$6)`, deploymentID, id, hostname, repo, branch, map[string]string{"runtime": runtime})
 	if err != nil {
 		return "", err
 	}
@@ -216,23 +229,27 @@ func (s *Sites) beginTLS(ctx context.Context, owner, id uuid.UUID) (*Site, error
 	}
 	defer tx.Rollback(ctx)
 	var ignored uuid.UUID
-	err = tx.QueryRow(ctx, `SELECT id FROM applications WHERE id=$1 AND owner_id=$2 AND app_type='static' FOR UPDATE`, id, owner).Scan(&ignored)
+	err = tx.QueryRow(ctx, `SELECT id FROM applications WHERE id=$1 AND owner_id=$2 AND app_type IN ('static','nodejs') FOR UPDATE`, id, owner).Scan(&ignored)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	site, err := s.get(ctx, owner, id)
+	site, err := s.Get(ctx, owner, id)
 	if err != nil {
 		return nil, err
 	}
 	var busy bool
+	var operation string
+	if err = tx.QueryRow(ctx, `SELECT operation FROM applications WHERE id=$1`, id).Scan(&operation); err != nil {
+		return nil, err
+	}
 	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM deployments WHERE app_id=$1 AND status IN ('pending','running'))`, id).Scan(&busy)
 	if err != nil {
 		return nil, err
 	}
-	if site.Status != "running" || busy || site.SSLStatus == "pending" || site.SSLStatus == "renewing" {
+	if site.Status != "running" || busy || operation != "" || site.SSLStatus == "pending" || site.SSLStatus == "renewing" {
 		return nil, ErrSiteBusy
 	}
 	_, err = tx.Exec(ctx, `UPDATE domains SET ssl_status='pending' WHERE app_id=$1`, id)
@@ -272,7 +289,7 @@ func (s *Sites) ImportTLS(ctx context.Context, owner, id uuid.UUID, chain, key [
 	if err != nil {
 		return ErrSiteInput
 	}
-	site, err := s.get(ctx, owner, id)
+	site, err := s.Get(ctx, owner, id)
 	if err != nil {
 		return err
 	}

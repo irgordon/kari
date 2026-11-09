@@ -149,7 +149,7 @@ recovery. Email links are a first factor, not MFA.
 
 ## Static websites
 
-The first P2 hosting path supports prepared static websites from public HTTPS Git
+The static hosting path supports prepared static websites from public HTTPS Git
 repositories. It requires the native agent and host Nginx; the container-only
 development smoke environment does not provide host publication. Use one API
 instance and one native agent on the supported Ubuntu server.
@@ -197,16 +197,126 @@ pinned Lego dependency and optional operator `ACME_DIRECTORY_URL`; the default i
 the Let's Encrypt production directory. No public certificate issuance was
 performed in the disposable local rehearsal.
 
-Application runtimes, customer database provisioning, file/SFTP access, manual
-workload backup/restore, broader server operations, and live dashboard telemetry
-remain P2 work. Control-plane backups do not include website files or certificates
-in these new site directories. Do not treat this increment as a complete P2 or
-production-hosting release.
+Select **Manage website** for the workload controls below. Control-plane backups
+and workload snapshots have different scopes; neither replaces off-host disaster
+recovery. Production release gates remain in force beyond feature completion.
+
+## Node.js applications
+
+Choose **Node.js 24.19.0** when creating a website. The repository root must contain
+`package.json` and `package-lock.json`. Karı runs `npm ci --ignore-scripts`, then
+`npm run build --if-present`, inside constrained unprivileged containers. Each
+step has a two-minute limit, 512 MiB memory, one CPU, and 128 processes. Dependency
+lifecycle scripts are disabled. Repositories needing other toolchains or native
+install hooks are outside this supported stack.
+
+The runtime executes `npm start`, listens on `PORT=3000` at `0.0.0.0`, and must
+serve a successful HTTP response at `/`. Published source is mounted read-only;
+write persistent application data under `/data` (`KARI_DATA_DIR`). Temporary
+files belong under `/tmp`. Runtime resource limits are fixed at 512 MiB, one
+CPU, and 128 processes. Runtime and PostgreSQL images come from the existing
+digest pins; no arbitrary image or host command is accepted from the browser.
+
+Before first publication, open **Manage website** to set custom environment
+variables and optionally create the database. Environment input replaces the
+entire custom map, is write-only, and is stored in root-private host files.
+Use uppercase `KEY=value` entries, at most 64 variables and 8 KiB per value.
+`PORT`, `HOST`, `NODE_ENV`, `KARI_DATA_DIR`, and `DATABASE_URL` are managed values.
+Publish again to apply environment/database changes. Start, stop, and restart
+control the current published container; they do not rebuild it.
+
+The new container must serve `/` before proxy activation. Nginx must acknowledge
+the new route before the old container is retired. The reserved
+`/.__kari_route` HTTP location is a loopback-only activation probe; remote
+requests receive 404. TLS activation additionally checks the served certificate.
+Recent application logs include bounded stdout and stderr (up to 32 KiB each),
+with explicit truncation. Application code must avoid logging secrets.
+
+## Customer databases
+
+**Create customer database** creates a PostgreSQL instance on this website's
+Docker network, separate from the panel and other sites, with no published
+database port. The application role `site` is not a superuser and cannot create
+roles or databases. The database is `site`, at `database:5432` within the site's
+network. Karı injects its generated credential as `DATABASE_URL` when publishing.
+Passwords are not returned in backup results or displayed in list responses.
+Run customer schema migrations through the application; this panel does not
+provide a browser SQL editor or remote PostgreSQL port.
+
+Database deletion requires application-delete permission and typed hostname
+confirmation. Back up first: deletion removes that database's files. A failed
+creation remains visible for inspection; explicitly delete/recreate it rather
+than assuming a partial instance is usable. After a create/delete operation,
+republish the Node application to refresh its connection environment.
+
+## Site files and SFTP
+
+The browser file manager operates only inside the site's persistent data
+directory: `/data` for Node, public `/files/` URLs for static sites. It supports
+directory listing/creation, UTF-8 text editing, and file deletion. Reads/writes
+are limited to 256 KiB and directory listings to 200 entries; use SFTP for larger
+or binary files. Directory deletion is not exposed by the browser. Published Git
+releases are read-only; update the repository and republish to change source.
+
+**Enable or replace SFTP key** accepts one Ed25519 or RSA OpenSSH public key,
+without authorization options. Connect on port 22 using the displayed site
+username and panel hostname. The session starts in `/files` inside the site's
+chroot. Shell, forwarding, and password authentication are disabled. Root owns
+the chroot, configuration, and published releases. Public authorization keys
+live under `/etc/ssh/kari_keys/`; private application settings and backups stay
+unreadable to the SFTP identity. The installer requires OpenSSH server/client
+tools; existing operator SSH settings and logins are not replaced.
+
+The API checks ownership and permissions; the agent checks site/domain binding
+and scopes paths again. Browser file access uses descriptor-relative no-follow
+operations to contain SFTP-created symlinks. Static Nginx rejects symlinks whose
+owner differs from the target. Disabling key access removes authorization and
+terminates that site's SSH sessions without stopping its application.
+
+## Manual workload backup and restore
+
+**Create workload backup** quiesces the application and existing SFTP sessions,
+copies data/release files, creates an actual PostgreSQL dump when a customer
+database exists, and saves active/pending environment and certificate metadata.
+The application resumes with a health check and the current SFTP authorization
+is restored. Backups are root-private, checksummed, and listed only for the owner.
+Each release/data tree is limited to 512 MiB and 100,000 entries; database dumps
+are limited to 512 MiB. At most 100 snapshots per site are retained. Delete old
+snapshots explicitly and monitor available disk space.
+
+**Restore** requires application-delete permission and typed website hostname
+confirmation. It verifies the snapshot before replacing current files, customer
+database, runtime settings, release, and certificate. Database credentials rotate
+to a fresh value and are injected into the restored runtime; old passwords and
+revoked SFTP keys are not revived. Current SFTP authorization is retained rather
+than rolled back. Saved external application credentials still require operator
+review after recovery.
+
+A failure before replacement retains current state. Failure during replacement
+leaves the application/SFTP stopped for operator repair and explicit retry; do
+not repeatedly click restore or manually start a mismatched release. An uncertain
+acknowledgement requires checking host state. Snapshots remain intact for repair.
+An expired saved certificate is reported as expired and needs renewal.
+
+These are same-host workload snapshots, not the panel database/key backup made
+by `kari-admin backup`. Schedules, retention automation, encrypted off-host copies,
+replacement-host restore orchestration, and workload migration remain later work.
+
+## Server operations
+
+**System** reports native CPU, memory, root filesystem space, uptime, and fixed
+service states when refreshed. Missing measurements are reported as unavailable.
+Application logs and lifecycle controls are per website. Server-management
+permission is required. Only configuration-validated Nginx reload is exposed;
+Docker/SSH/agent lifecycle, arbitrary commands, packages, and reboot remain local
+operator responsibilities. The former unsupported global settings page redirects
+to these implemented controls and does not claim to synchronize resource policy.
 
 ## Supported installation
 
 Use Ubuntu 24.04 on a dedicated server with rootful Docker Engine 24+, Compose
-2.20+, Nginx, Git, OpenSSL, systemd, and free UID/GID 1001. Install those OS prerequisites first.
+2.20+, Nginx, Git, OpenSSL, OpenSSH server/client tools, systemd, and free UID/GID
+1001. Install those OS prerequisites first.
 The installer refuses another distribution, an existing installation, occupied
 service identities, or pre-existing service/configuration files.
 

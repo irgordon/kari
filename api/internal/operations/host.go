@@ -350,7 +350,7 @@ func (h Host) Install(ctx context.Context, bundle, expected, publicURL, cert, ke
 	if _, err = os.Lstat(h.Root); !os.IsNotExist(err) {
 		return errors.New("installation root already exists; use upgrade")
 	}
-	for _, binary := range []string{"docker", "nginx", "systemctl", "getent", "groupadd", "useradd", "git", "openssl", "systemd-run"} {
+	for _, binary := range []string{"docker", "nginx", "systemctl", "getent", "groupadd", "useradd", "git", "openssl", "systemd-run", "sshd", "ssh-keygen", "sha256sum", "pkill"} {
 		if _, err = exec.LookPath(binary); err != nil {
 			return fmt.Errorf("missing prerequisite %s", binary)
 		}
@@ -821,6 +821,22 @@ func replaceFile(src, dst string, mode os.FileMode) error {
 }
 
 func (h Host) refreshUnits(ctx context.Context, release string) error {
+	toolchain, err := godotenv.Read(filepath.Join(release, "toolchain.env"))
+	if err != nil {
+		return err
+	}
+	agentEnvironment, err := godotenv.Read("/etc/kari/agent.env")
+	if err != nil {
+		return err
+	}
+	agentEnvironment["KARI_NODE_IMAGE"] = toolchain["NODE_BUILDER_IMAGE"]
+	agentEnvironment["KARI_POSTGRES_IMAGE"] = toolchain["POSTGRES_IMAGE"]
+	if err = godotenv.Write(agentEnvironment, "/etc/kari/agent.env"); err != nil {
+		return err
+	}
+	if err = os.Chmod("/etc/kari/agent.env", 0600); err != nil {
+		return err
+	}
 	if err := replaceFile(filepath.Join(release, "kari-agent.service"), "/etc/systemd/system/kari-agent.service", 0644); err != nil {
 		return err
 	}

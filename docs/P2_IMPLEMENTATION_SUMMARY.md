@@ -1,5 +1,10 @@
 # P2: first static website workflow
 
+This records the first increment at `ba97e25`. See
+[P2 completion](P2_COMPLETION_SUMMARY.md) for the subsequent Node, database,
+files/SFTP, backup/restore, and server-operations implementation. The limitations
+below describe this earlier increment rather than the current feature set.
+
 This increment connects website creation, publication, domain routing, TLS, and
 saved dashboard state. It is deliberately limited to prepared static content from
 public HTTPS Git repositories. It does not complete P2 or certify production use.

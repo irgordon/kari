@@ -21,20 +21,21 @@ import (
 
 // RouterConfig defines the strict dependencies required to build the API routing tree.
 type RouterConfig struct {
-	AllowedOrigins []string
-	TrustedProxies []netip.Prefix
-	AuthHandler    *handlers.AuthHandler
-	EmailHandler   *handlers.EmailAccessHandler
-	AppHandler     *handlers.AppHandler
-	DomainHandler  *handlers.DomainHandler
-	AuditHandler   *handlers.AuditHandler
-	WSHandler      *handlers.WebSocketHandler
-	SetupHandler   *handlers.SetupHandler
-	AuthMiddleware *auth_middleware.AuthMiddleware
-	DeployHandler  *handlers.DeploymentHandler
-	SiteHandler    *handlers.SiteHandler
-	ReadinessCheck func(context.Context) error
-	Logger         *slog.Logger
+	AllowedOrigins  []string
+	TrustedProxies  []netip.Prefix
+	AuthHandler     *handlers.AuthHandler
+	EmailHandler    *handlers.EmailAccessHandler
+	AppHandler      *handlers.AppHandler
+	DomainHandler   *handlers.DomainHandler
+	AuditHandler    *handlers.AuditHandler
+	WSHandler       *handlers.WebSocketHandler
+	SetupHandler    *handlers.SetupHandler
+	AuthMiddleware  *auth_middleware.AuthMiddleware
+	DeployHandler   *handlers.DeploymentHandler
+	SiteHandler     *handlers.SiteHandler
+	WorkloadHandler *handlers.WorkloadHandler
+	ReadinessCheck  func(context.Context) error
+	Logger          *slog.Logger
 }
 
 // NewRouter constructs the Chi multiplexer, attaches global middleware, and wires all endpoints.
@@ -179,10 +180,20 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			if cfg.SiteHandler != nil {
 				r.Route("/sites", func(r chi.Router) {
 					r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).Get("/", cfg.SiteHandler.ServeHTTP)
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).Get("/{site}", cfg.SiteHandler.ServeHTTP)
 					r.With(cfg.AuthMiddleware.RequirePermission("applications", "write"), cfg.AuthMiddleware.RequirePermission("domains", "write")).Post("/", cfg.SiteHandler.ServeHTTP)
 					r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).Get("/{site}/deployments/{deployment}", cfg.SiteHandler.ServeHTTP)
 					r.With(cfg.AuthMiddleware.RequirePermission("applications", "deploy"), cfg.AuthMiddleware.RequirePermission("domains", "write")).Post("/{site}/{operation:deploy|tls}", cfg.SiteHandler.ServeHTTP)
+					if cfg.WorkloadHandler != nil {
+						r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).Get("/{site}/{resource:runtime|database|files|sftp|backups}", cfg.WorkloadHandler.ServeHTTP)
+						r.With(cfg.AuthMiddleware.RequirePermission("applications", "write")).Post("/{site}/{resource:runtime|database|files|sftp|backups}", cfg.WorkloadHandler.ServeHTTP)
+					}
 				})
+			}
+			if cfg.WorkloadHandler != nil {
+				r.With(cfg.AuthMiddleware.RequirePermission("server", "manage")).Get("/system/stats", cfg.WorkloadHandler.System)
+				r.With(cfg.AuthMiddleware.RequirePermission("server", "manage")).Get("/system/services", cfg.WorkloadHandler.System)
+				r.With(cfg.AuthMiddleware.RequirePermission("server", "manage")).Post("/system/services", cfg.WorkloadHandler.System)
 			}
 
 			if cfg.DomainHandler != nil {

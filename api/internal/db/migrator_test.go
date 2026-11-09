@@ -7,8 +7,8 @@ func TestLoadMigrationPlan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadMigrationPlan() error = %v", err)
 	}
-	if len(plan) != 7 {
-		t.Fatalf("LoadMigrationPlan() count = %d, want 7", len(plan))
+	if len(plan) != 8 {
+		t.Fatalf("LoadMigrationPlan() count = %d, want 8", len(plan))
 	}
 	for index, migration := range plan {
 		wantVersion := int64(index + 1)

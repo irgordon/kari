@@ -9,9 +9,9 @@ import './App.css'
 import { AuditPage } from './pages/AuditPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { SitesPage } from './pages/SitesPage'
+import { WebsitePage } from './pages/WebsitePage'
 import { LoginPage } from './pages/LoginPage'
 import { RolesPage } from './pages/RolesPage'
-import { SettingsPage } from './pages/SettingsPage'
 import { SystemPage } from './pages/SystemPage'
 
 function App() {
@@ -95,7 +95,7 @@ function AppShell({ user, onSignedOut, onUserChange }: { user: AccountUser; onSi
             </li>
             <li>
               <NavLink to="/settings" className="nav-link">
-                Settings
+                Server settings
               </NavLink>
             </li>
           </ul>
@@ -109,12 +109,13 @@ function AppShell({ user, onSignedOut, onUserChange }: { user: AccountUser; onSi
           <Route path="/account" element={<AccountPage user={user} onUserChange={onUserChange} />} />
           <Route path="/" element={user.mfa_required && !user.mfa_enabled ? <Navigate to="/account" replace /> : <DashboardPage />} />
           <Route path="/sites" element={<SitesPage />} />
+          <Route path="/sites/:id" element={<WebsitePage />} />
           <Route path="/deployments" element={<Navigate to="/sites" replace />} />
           <Route path="/domains" element={<Navigate to="/sites" replace />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/audit" element={<AuditPage />} />
           <Route path="/system" element={<SystemPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings" element={<Navigate to="/system" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

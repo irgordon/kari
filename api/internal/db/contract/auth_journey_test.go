@@ -302,7 +302,7 @@ func TestMigrationRequiresRestorableDatabaseBackup(t *testing.T) {
 	}
 	version, err = karidb.SchemaVersion(ctx, pool)
 	requireNoError(t, err)
-	if version != 7 {
+	if version != 8 {
 		t.Fatal("backed migration did not reach current schema")
 	}
 }

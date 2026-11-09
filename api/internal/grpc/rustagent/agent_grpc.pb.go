@@ -21,6 +21,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	SystemAgent_DeployNodeSite_FullMethodName        = "/kari.agent.v1.SystemAgent/DeployNodeSite"
+	SystemAgent_SiteRuntime_FullMethodName           = "/kari.agent.v1.SystemAgent/SiteRuntime"
+	SystemAgent_SiteDatabase_FullMethodName          = "/kari.agent.v1.SystemAgent/SiteDatabase"
+	SystemAgent_SiteFiles_FullMethodName             = "/kari.agent.v1.SystemAgent/SiteFiles"
+	SystemAgent_SiteSFTP_FullMethodName              = "/kari.agent.v1.SystemAgent/SiteSFTP"
+	SystemAgent_SiteBackups_FullMethodName           = "/kari.agent.v1.SystemAgent/SiteBackups"
+	SystemAgent_HostServices_FullMethodName          = "/kari.agent.v1.SystemAgent/HostServices"
 	SystemAgent_DeployStaticSite_FullMethodName      = "/kari.agent.v1.SystemAgent/DeployStaticSite"
 	SystemAgent_SetSiteChallenge_FullMethodName      = "/kari.agent.v1.SystemAgent/SetSiteChallenge"
 	SystemAgent_ActivateSiteTLS_FullMethodName       = "/kari.agent.v1.SystemAgent/ActivateSiteTLS"
@@ -41,6 +48,13 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SystemAgentClient interface {
+	DeployNodeSite(ctx context.Context, in *StaticSiteRequest, opts ...grpc.CallOption) (*AgentResponse, error)
+	SiteRuntime(ctx context.Context, in *RuntimeRequest, opts ...grpc.CallOption) (*RuntimeStatus, error)
+	SiteDatabase(ctx context.Context, in *DatabaseRequest, opts ...grpc.CallOption) (*DatabaseStatus, error)
+	SiteFiles(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (*FileResult, error)
+	SiteSFTP(ctx context.Context, in *SFTPRequest, opts ...grpc.CallOption) (*SFTPStatus, error)
+	SiteBackups(ctx context.Context, in *BackupRequest, opts ...grpc.CallOption) (*BackupResult, error)
+	HostServices(ctx context.Context, in *HostServiceRequest, opts ...grpc.CallOption) (*HostServiceStatus, error)
 	DeployStaticSite(ctx context.Context, in *StaticSiteRequest, opts ...grpc.CallOption) (*AgentResponse, error)
 	SetSiteChallenge(ctx context.Context, in *SiteChallenge, opts ...grpc.CallOption) (*AgentResponse, error)
 	ActivateSiteTLS(ctx context.Context, in *SiteCertificate, opts ...grpc.CallOption) (*AgentResponse, error)
@@ -69,6 +83,76 @@ type systemAgentClient struct {
 
 func NewSystemAgentClient(cc grpc.ClientConnInterface) SystemAgentClient {
 	return &systemAgentClient{cc}
+}
+
+func (c *systemAgentClient) DeployNodeSite(ctx context.Context, in *StaticSiteRequest, opts ...grpc.CallOption) (*AgentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentResponse)
+	err := c.cc.Invoke(ctx, SystemAgent_DeployNodeSite_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *systemAgentClient) SiteRuntime(ctx context.Context, in *RuntimeRequest, opts ...grpc.CallOption) (*RuntimeStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RuntimeStatus)
+	err := c.cc.Invoke(ctx, SystemAgent_SiteRuntime_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *systemAgentClient) SiteDatabase(ctx context.Context, in *DatabaseRequest, opts ...grpc.CallOption) (*DatabaseStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DatabaseStatus)
+	err := c.cc.Invoke(ctx, SystemAgent_SiteDatabase_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *systemAgentClient) SiteFiles(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (*FileResult, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FileResult)
+	err := c.cc.Invoke(ctx, SystemAgent_SiteFiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *systemAgentClient) SiteSFTP(ctx context.Context, in *SFTPRequest, opts ...grpc.CallOption) (*SFTPStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SFTPStatus)
+	err := c.cc.Invoke(ctx, SystemAgent_SiteSFTP_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *systemAgentClient) SiteBackups(ctx context.Context, in *BackupRequest, opts ...grpc.CallOption) (*BackupResult, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BackupResult)
+	err := c.cc.Invoke(ctx, SystemAgent_SiteBackups_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *systemAgentClient) HostServices(ctx context.Context, in *HostServiceRequest, opts ...grpc.CallOption) (*HostServiceStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HostServiceStatus)
+	err := c.cc.Invoke(ctx, SystemAgent_HostServices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *systemAgentClient) DeployStaticSite(ctx context.Context, in *StaticSiteRequest, opts ...grpc.CallOption) (*AgentResponse, error) {
@@ -224,6 +308,13 @@ func (c *systemAgentClient) ScheduleJob(ctx context.Context, in *JobIntent, opts
 // All implementations must embed UnimplementedSystemAgentServer
 // for forward compatibility.
 type SystemAgentServer interface {
+	DeployNodeSite(context.Context, *StaticSiteRequest) (*AgentResponse, error)
+	SiteRuntime(context.Context, *RuntimeRequest) (*RuntimeStatus, error)
+	SiteDatabase(context.Context, *DatabaseRequest) (*DatabaseStatus, error)
+	SiteFiles(context.Context, *FileRequest) (*FileResult, error)
+	SiteSFTP(context.Context, *SFTPRequest) (*SFTPStatus, error)
+	SiteBackups(context.Context, *BackupRequest) (*BackupResult, error)
+	HostServices(context.Context, *HostServiceRequest) (*HostServiceStatus, error)
 	DeployStaticSite(context.Context, *StaticSiteRequest) (*AgentResponse, error)
 	SetSiteChallenge(context.Context, *SiteChallenge) (*AgentResponse, error)
 	ActivateSiteTLS(context.Context, *SiteCertificate) (*AgentResponse, error)
@@ -254,6 +345,27 @@ type SystemAgentServer interface {
 // pointer dereference when methods are called.
 type UnimplementedSystemAgentServer struct{}
 
+func (UnimplementedSystemAgentServer) DeployNodeSite(context.Context, *StaticSiteRequest) (*AgentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeployNodeSite not implemented")
+}
+func (UnimplementedSystemAgentServer) SiteRuntime(context.Context, *RuntimeRequest) (*RuntimeStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SiteRuntime not implemented")
+}
+func (UnimplementedSystemAgentServer) SiteDatabase(context.Context, *DatabaseRequest) (*DatabaseStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SiteDatabase not implemented")
+}
+func (UnimplementedSystemAgentServer) SiteFiles(context.Context, *FileRequest) (*FileResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SiteFiles not implemented")
+}
+func (UnimplementedSystemAgentServer) SiteSFTP(context.Context, *SFTPRequest) (*SFTPStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SiteSFTP not implemented")
+}
+func (UnimplementedSystemAgentServer) SiteBackups(context.Context, *BackupRequest) (*BackupResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SiteBackups not implemented")
+}
+func (UnimplementedSystemAgentServer) HostServices(context.Context, *HostServiceRequest) (*HostServiceStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HostServices not implemented")
+}
 func (UnimplementedSystemAgentServer) DeployStaticSite(context.Context, *StaticSiteRequest) (*AgentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployStaticSite not implemented")
 }
@@ -315,6 +427,132 @@ func RegisterSystemAgentServer(s grpc.ServiceRegistrar, srv SystemAgentServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&SystemAgent_ServiceDesc, srv)
+}
+
+func _SystemAgent_DeployNodeSite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StaticSiteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemAgentServer).DeployNodeSite(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemAgent_DeployNodeSite_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemAgentServer).DeployNodeSite(ctx, req.(*StaticSiteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SystemAgent_SiteRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RuntimeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemAgentServer).SiteRuntime(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemAgent_SiteRuntime_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemAgentServer).SiteRuntime(ctx, req.(*RuntimeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SystemAgent_SiteDatabase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DatabaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemAgentServer).SiteDatabase(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemAgent_SiteDatabase_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemAgentServer).SiteDatabase(ctx, req.(*DatabaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SystemAgent_SiteFiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemAgentServer).SiteFiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemAgent_SiteFiles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemAgentServer).SiteFiles(ctx, req.(*FileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SystemAgent_SiteSFTP_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SFTPRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemAgentServer).SiteSFTP(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemAgent_SiteSFTP_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemAgentServer).SiteSFTP(ctx, req.(*SFTPRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SystemAgent_SiteBackups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BackupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemAgentServer).SiteBackups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemAgent_SiteBackups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemAgentServer).SiteBackups(ctx, req.(*BackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SystemAgent_HostServices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HostServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemAgentServer).HostServices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemAgent_HostServices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemAgentServer).HostServices(ctx, req.(*HostServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _SystemAgent_DeployStaticSite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -569,6 +807,34 @@ var SystemAgent_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "kari.agent.v1.SystemAgent",
 	HandlerType: (*SystemAgentServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "DeployNodeSite",
+			Handler:    _SystemAgent_DeployNodeSite_Handler,
+		},
+		{
+			MethodName: "SiteRuntime",
+			Handler:    _SystemAgent_SiteRuntime_Handler,
+		},
+		{
+			MethodName: "SiteDatabase",
+			Handler:    _SystemAgent_SiteDatabase_Handler,
+		},
+		{
+			MethodName: "SiteFiles",
+			Handler:    _SystemAgent_SiteFiles_Handler,
+		},
+		{
+			MethodName: "SiteSFTP",
+			Handler:    _SystemAgent_SiteSFTP_Handler,
+		},
+		{
+			MethodName: "SiteBackups",
+			Handler:    _SystemAgent_SiteBackups_Handler,
+		},
+		{
+			MethodName: "HostServices",
+			Handler:    _SystemAgent_HostServices_Handler,
+		},
 		{
 			MethodName: "DeployStaticSite",
 			Handler:    _SystemAgent_DeployStaticSite_Handler,

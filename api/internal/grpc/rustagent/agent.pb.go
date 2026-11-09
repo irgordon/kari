@@ -127,7 +127,7 @@ func (x FirewallPolicy_Action) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FirewallPolicy_Action.Descriptor instead.
 func (FirewallPolicy_Action) EnumDescriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{7, 0}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{21, 0}
 }
 
 type FirewallPolicy_Protocol int32
@@ -176,7 +176,7 @@ func (x FirewallPolicy_Protocol) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FirewallPolicy_Protocol.Descriptor instead.
 func (FirewallPolicy_Protocol) EnumDescriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{7, 1}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{21, 1}
 }
 
 type StaticSiteRequest struct {
@@ -255,6 +255,870 @@ func (x *StaticSiteRequest) GetDeploymentId() string {
 	return ""
 }
 
+type RuntimeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SiteId        string                 `protobuf:"bytes,1,opt,name=site_id,json=siteId,proto3" json:"site_id,omitempty"`
+	DomainName    string                 `protobuf:"bytes,2,opt,name=domain_name,json=domainName,proto3" json:"domain_name,omitempty"`
+	Action        string                 `protobuf:"bytes,3,opt,name=action,proto3" json:"action,omitempty"`
+	EnvVars       map[string]string      `protobuf:"bytes,4,rep,name=env_vars,json=envVars,proto3" json:"env_vars,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RuntimeRequest) Reset() {
+	*x = RuntimeRequest{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeRequest) ProtoMessage() {}
+
+func (x *RuntimeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeRequest.ProtoReflect.Descriptor instead.
+func (*RuntimeRequest) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RuntimeRequest) GetSiteId() string {
+	if x != nil {
+		return x.SiteId
+	}
+	return ""
+}
+
+func (x *RuntimeRequest) GetDomainName() string {
+	if x != nil {
+		return x.DomainName
+	}
+	return ""
+}
+
+func (x *RuntimeRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *RuntimeRequest) GetEnvVars() map[string]string {
+	if x != nil {
+		return x.EnvVars
+	}
+	return nil
+}
+
+type RuntimeStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Running       bool                   `protobuf:"varint,1,opt,name=running,proto3" json:"running,omitempty"`
+	Logs          string                 `protobuf:"bytes,2,opt,name=logs,proto3" json:"logs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RuntimeStatus) Reset() {
+	*x = RuntimeStatus{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeStatus) ProtoMessage() {}
+
+func (x *RuntimeStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeStatus.ProtoReflect.Descriptor instead.
+func (*RuntimeStatus) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *RuntimeStatus) GetRunning() bool {
+	if x != nil {
+		return x.Running
+	}
+	return false
+}
+
+func (x *RuntimeStatus) GetLogs() string {
+	if x != nil {
+		return x.Logs
+	}
+	return ""
+}
+
+type DatabaseRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SiteId        string                 `protobuf:"bytes,1,opt,name=site_id,json=siteId,proto3" json:"site_id,omitempty"`
+	DomainName    string                 `protobuf:"bytes,2,opt,name=domain_name,json=domainName,proto3" json:"domain_name,omitempty"`
+	Action        string                 `protobuf:"bytes,3,opt,name=action,proto3" json:"action,omitempty"`
+	Password      string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatabaseRequest) Reset() {
+	*x = DatabaseRequest{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatabaseRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatabaseRequest) ProtoMessage() {}
+
+func (x *DatabaseRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatabaseRequest.ProtoReflect.Descriptor instead.
+func (*DatabaseRequest) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DatabaseRequest) GetSiteId() string {
+	if x != nil {
+		return x.SiteId
+	}
+	return ""
+}
+
+func (x *DatabaseRequest) GetDomainName() string {
+	if x != nil {
+		return x.DomainName
+	}
+	return ""
+}
+
+func (x *DatabaseRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *DatabaseRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type DatabaseStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Exists        bool                   `protobuf:"varint,1,opt,name=exists,proto3" json:"exists,omitempty"`
+	Host          string                 `protobuf:"bytes,2,opt,name=host,proto3" json:"host,omitempty"`
+	Database      string                 `protobuf:"bytes,3,opt,name=database,proto3" json:"database,omitempty"`
+	Username      string                 `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatabaseStatus) Reset() {
+	*x = DatabaseStatus{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatabaseStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatabaseStatus) ProtoMessage() {}
+
+func (x *DatabaseStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatabaseStatus.ProtoReflect.Descriptor instead.
+func (*DatabaseStatus) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *DatabaseStatus) GetExists() bool {
+	if x != nil {
+		return x.Exists
+	}
+	return false
+}
+
+func (x *DatabaseStatus) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *DatabaseStatus) GetDatabase() string {
+	if x != nil {
+		return x.Database
+	}
+	return ""
+}
+
+func (x *DatabaseStatus) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+type FileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SiteId        string                 `protobuf:"bytes,1,opt,name=site_id,json=siteId,proto3" json:"site_id,omitempty"`
+	DomainName    string                 `protobuf:"bytes,2,opt,name=domain_name,json=domainName,proto3" json:"domain_name,omitempty"`
+	Action        string                 `protobuf:"bytes,3,opt,name=action,proto3" json:"action,omitempty"`
+	Path          string                 `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	Content       []byte                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileRequest) Reset() {
+	*x = FileRequest{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileRequest) ProtoMessage() {}
+
+func (x *FileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileRequest.ProtoReflect.Descriptor instead.
+func (*FileRequest) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FileRequest) GetSiteId() string {
+	if x != nil {
+		return x.SiteId
+	}
+	return ""
+}
+
+func (x *FileRequest) GetDomainName() string {
+	if x != nil {
+		return x.DomainName
+	}
+	return ""
+}
+
+func (x *FileRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *FileRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *FileRequest) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+type FileEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Directory     bool                   `protobuf:"varint,2,opt,name=directory,proto3" json:"directory,omitempty"`
+	Size          uint64                 `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileEntry) Reset() {
+	*x = FileEntry{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileEntry) ProtoMessage() {}
+
+func (x *FileEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileEntry.ProtoReflect.Descriptor instead.
+func (*FileEntry) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *FileEntry) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FileEntry) GetDirectory() bool {
+	if x != nil {
+		return x.Directory
+	}
+	return false
+}
+
+func (x *FileEntry) GetSize() uint64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+type FileResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*FileEntry           `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	Content       []byte                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileResult) Reset() {
+	*x = FileResult{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileResult) ProtoMessage() {}
+
+func (x *FileResult) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileResult.ProtoReflect.Descriptor instead.
+func (*FileResult) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *FileResult) GetEntries() []*FileEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+func (x *FileResult) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+type SFTPRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SiteId        string                 `protobuf:"bytes,1,opt,name=site_id,json=siteId,proto3" json:"site_id,omitempty"`
+	DomainName    string                 `protobuf:"bytes,2,opt,name=domain_name,json=domainName,proto3" json:"domain_name,omitempty"`
+	Action        string                 `protobuf:"bytes,3,opt,name=action,proto3" json:"action,omitempty"`
+	PublicKey     string                 `protobuf:"bytes,4,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SFTPRequest) Reset() {
+	*x = SFTPRequest{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SFTPRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SFTPRequest) ProtoMessage() {}
+
+func (x *SFTPRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SFTPRequest.ProtoReflect.Descriptor instead.
+func (*SFTPRequest) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SFTPRequest) GetSiteId() string {
+	if x != nil {
+		return x.SiteId
+	}
+	return ""
+}
+
+func (x *SFTPRequest) GetDomainName() string {
+	if x != nil {
+		return x.DomainName
+	}
+	return ""
+}
+
+func (x *SFTPRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *SFTPRequest) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
+}
+
+type SFTPStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SFTPStatus) Reset() {
+	*x = SFTPStatus{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SFTPStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SFTPStatus) ProtoMessage() {}
+
+func (x *SFTPStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SFTPStatus.ProtoReflect.Descriptor instead.
+func (*SFTPStatus) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SFTPStatus) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *SFTPStatus) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+type BackupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SiteId        string                 `protobuf:"bytes,1,opt,name=site_id,json=siteId,proto3" json:"site_id,omitempty"`
+	DomainName    string                 `protobuf:"bytes,2,opt,name=domain_name,json=domainName,proto3" json:"domain_name,omitempty"`
+	Action        string                 `protobuf:"bytes,3,opt,name=action,proto3" json:"action,omitempty"`
+	BackupId      string                 `protobuf:"bytes,4,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BackupRequest) Reset() {
+	*x = BackupRequest{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackupRequest) ProtoMessage() {}
+
+func (x *BackupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackupRequest.ProtoReflect.Descriptor instead.
+func (*BackupRequest) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *BackupRequest) GetSiteId() string {
+	if x != nil {
+		return x.SiteId
+	}
+	return ""
+}
+
+func (x *BackupRequest) GetDomainName() string {
+	if x != nil {
+		return x.DomainName
+	}
+	return ""
+}
+
+func (x *BackupRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *BackupRequest) GetBackupId() string {
+	if x != nil {
+		return x.BackupId
+	}
+	return ""
+}
+
+type BackupRecord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BackupRecord) Reset() {
+	*x = BackupRecord{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackupRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackupRecord) ProtoMessage() {}
+
+func (x *BackupRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackupRecord.ProtoReflect.Descriptor instead.
+func (*BackupRecord) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BackupRecord) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *BackupRecord) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+type BackupResult struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Backups        []*BackupRecord        `protobuf:"bytes,1,rep,name=backups,proto3" json:"backups,omitempty"`
+	Runtime        string                 `protobuf:"bytes,2,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	DatabaseExists bool                   `protobuf:"varint,3,opt,name=database_exists,json=databaseExists,proto3" json:"database_exists,omitempty"`
+	Repository     string                 `protobuf:"bytes,4,opt,name=repository,proto3" json:"repository,omitempty"`
+	Branch         string                 `protobuf:"bytes,5,opt,name=branch,proto3" json:"branch,omitempty"`
+	CertificatePem []byte                 `protobuf:"bytes,6,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *BackupResult) Reset() {
+	*x = BackupResult{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackupResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackupResult) ProtoMessage() {}
+
+func (x *BackupResult) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackupResult.ProtoReflect.Descriptor instead.
+func (*BackupResult) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *BackupResult) GetBackups() []*BackupRecord {
+	if x != nil {
+		return x.Backups
+	}
+	return nil
+}
+
+func (x *BackupResult) GetRuntime() string {
+	if x != nil {
+		return x.Runtime
+	}
+	return ""
+}
+
+func (x *BackupResult) GetDatabaseExists() bool {
+	if x != nil {
+		return x.DatabaseExists
+	}
+	return false
+}
+
+func (x *BackupResult) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+func (x *BackupResult) GetBranch() string {
+	if x != nil {
+		return x.Branch
+	}
+	return ""
+}
+
+func (x *BackupResult) GetCertificatePem() []byte {
+	if x != nil {
+		return x.CertificatePem
+	}
+	return nil
+}
+
+type HostServiceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HostServiceRequest) Reset() {
+	*x = HostServiceRequest{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HostServiceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HostServiceRequest) ProtoMessage() {}
+
+func (x *HostServiceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HostServiceRequest.ProtoReflect.Descriptor instead.
+func (*HostServiceRequest) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *HostServiceRequest) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *HostServiceRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+type HostServiceStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Services      map[string]string      `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HostServiceStatus) Reset() {
+	*x = HostServiceStatus{}
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HostServiceStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HostServiceStatus) ProtoMessage() {}
+
+func (x *HostServiceStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HostServiceStatus.ProtoReflect.Descriptor instead.
+func (*HostServiceStatus) Descriptor() ([]byte, []int) {
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *HostServiceStatus) GetServices() map[string]string {
+	if x != nil {
+		return x.Services
+	}
+	return nil
+}
+
 type SiteChallenge struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	SiteId           string                 `protobuf:"bytes,1,opt,name=site_id,json=siteId,proto3" json:"site_id,omitempty"`
@@ -268,7 +1132,7 @@ type SiteChallenge struct {
 
 func (x *SiteChallenge) Reset() {
 	*x = SiteChallenge{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[1]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -280,7 +1144,7 @@ func (x *SiteChallenge) String() string {
 func (*SiteChallenge) ProtoMessage() {}
 
 func (x *SiteChallenge) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[1]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -293,7 +1157,7 @@ func (x *SiteChallenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SiteChallenge.ProtoReflect.Descriptor instead.
 func (*SiteChallenge) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{1}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *SiteChallenge) GetSiteId() string {
@@ -343,7 +1207,7 @@ type SiteCertificate struct {
 
 func (x *SiteCertificate) Reset() {
 	*x = SiteCertificate{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[2]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -355,7 +1219,7 @@ func (x *SiteCertificate) String() string {
 func (*SiteCertificate) ProtoMessage() {}
 
 func (x *SiteCertificate) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[2]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -368,7 +1232,7 @@ func (x *SiteCertificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SiteCertificate.ProtoReflect.Descriptor instead.
 func (*SiteCertificate) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{2}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SiteCertificate) GetSiteId() string {
@@ -407,7 +1271,7 @@ type Empty struct {
 
 func (x *Empty) Reset() {
 	*x = Empty{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[3]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -419,7 +1283,7 @@ func (x *Empty) String() string {
 func (*Empty) ProtoMessage() {}
 
 func (x *Empty) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[3]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -432,24 +1296,28 @@ func (x *Empty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Empty.ProtoReflect.Descriptor instead.
 func (*Empty) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{3}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{17}
 }
 
 type SystemStatus struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Healthy         bool                   `protobuf:"varint,1,opt,name=healthy,proto3" json:"healthy,omitempty"`
-	ActiveJails     uint32                 `protobuf:"varint,2,opt,name=active_jails,json=activeJails,proto3" json:"active_jails,omitempty"`
-	CpuUsagePercent float32                `protobuf:"fixed32,3,opt,name=cpu_usage_percent,json=cpuUsagePercent,proto3" json:"cpu_usage_percent,omitempty"`
-	MemoryUsageMb   float32                `protobuf:"fixed32,4,opt,name=memory_usage_mb,json=memoryUsageMb,proto3" json:"memory_usage_mb,omitempty"`
-	AgentVersion    string                 `protobuf:"bytes,5,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
-	UptimeSeconds   uint64                 `protobuf:"varint,6,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Healthy            bool                   `protobuf:"varint,1,opt,name=healthy,proto3" json:"healthy,omitempty"`
+	ActiveJails        uint32                 `protobuf:"varint,2,opt,name=active_jails,json=activeJails,proto3" json:"active_jails,omitempty"`
+	CpuUsagePercent    float32                `protobuf:"fixed32,3,opt,name=cpu_usage_percent,json=cpuUsagePercent,proto3" json:"cpu_usage_percent,omitempty"`
+	MemoryUsageMb      float32                `protobuf:"fixed32,4,opt,name=memory_usage_mb,json=memoryUsageMb,proto3" json:"memory_usage_mb,omitempty"`
+	AgentVersion       string                 `protobuf:"bytes,5,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
+	UptimeSeconds      uint64                 `protobuf:"varint,6,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
+	MemoryTotalBytes   uint64                 `protobuf:"varint,7,opt,name=memory_total_bytes,json=memoryTotalBytes,proto3" json:"memory_total_bytes,omitempty"`
+	MemoryUsedBytes    uint64                 `protobuf:"varint,8,opt,name=memory_used_bytes,json=memoryUsedBytes,proto3" json:"memory_used_bytes,omitempty"`
+	DiskTotalBytes     uint64                 `protobuf:"varint,9,opt,name=disk_total_bytes,json=diskTotalBytes,proto3" json:"disk_total_bytes,omitempty"`
+	DiskAvailableBytes uint64                 `protobuf:"varint,10,opt,name=disk_available_bytes,json=diskAvailableBytes,proto3" json:"disk_available_bytes,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SystemStatus) Reset() {
 	*x = SystemStatus{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[4]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -461,7 +1329,7 @@ func (x *SystemStatus) String() string {
 func (*SystemStatus) ProtoMessage() {}
 
 func (x *SystemStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[4]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -474,7 +1342,7 @@ func (x *SystemStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemStatus.ProtoReflect.Descriptor instead.
 func (*SystemStatus) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{4}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SystemStatus) GetHealthy() bool {
@@ -519,6 +1387,34 @@ func (x *SystemStatus) GetUptimeSeconds() uint64 {
 	return 0
 }
 
+func (x *SystemStatus) GetMemoryTotalBytes() uint64 {
+	if x != nil {
+		return x.MemoryTotalBytes
+	}
+	return 0
+}
+
+func (x *SystemStatus) GetMemoryUsedBytes() uint64 {
+	if x != nil {
+		return x.MemoryUsedBytes
+	}
+	return 0
+}
+
+func (x *SystemStatus) GetDiskTotalBytes() uint64 {
+	if x != nil {
+		return x.DiskTotalBytes
+	}
+	return 0
+}
+
+func (x *SystemStatus) GetDiskAvailableBytes() uint64 {
+	if x != nil {
+		return x.DiskAvailableBytes
+	}
+	return 0
+}
+
 type AgentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -532,7 +1428,7 @@ type AgentResponse struct {
 
 func (x *AgentResponse) Reset() {
 	*x = AgentResponse{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[5]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -544,7 +1440,7 @@ func (x *AgentResponse) String() string {
 func (*AgentResponse) ProtoMessage() {}
 
 func (x *AgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[5]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -557,7 +1453,7 @@ func (x *AgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentResponse.ProtoReflect.Descriptor instead.
 func (*AgentResponse) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{5}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *AgentResponse) GetSuccess() bool {
@@ -606,7 +1502,7 @@ type LogChunk struct {
 
 func (x *LogChunk) Reset() {
 	*x = LogChunk{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[6]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -618,7 +1514,7 @@ func (x *LogChunk) String() string {
 func (*LogChunk) ProtoMessage() {}
 
 func (x *LogChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[6]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -631,7 +1527,7 @@ func (x *LogChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogChunk.ProtoReflect.Descriptor instead.
 func (*LogChunk) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{6}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *LogChunk) GetTraceId() string {
@@ -661,7 +1557,7 @@ type FirewallPolicy struct {
 
 func (x *FirewallPolicy) Reset() {
 	*x = FirewallPolicy{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[7]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -673,7 +1569,7 @@ func (x *FirewallPolicy) String() string {
 func (*FirewallPolicy) ProtoMessage() {}
 
 func (x *FirewallPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[7]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -686,7 +1582,7 @@ func (x *FirewallPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FirewallPolicy.ProtoReflect.Descriptor instead.
 func (*FirewallPolicy) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{7}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *FirewallPolicy) GetAction() FirewallPolicy_Action {
@@ -731,7 +1627,7 @@ type JobIntent struct {
 
 func (x *JobIntent) Reset() {
 	*x = JobIntent{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[8]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -743,7 +1639,7 @@ func (x *JobIntent) String() string {
 func (*JobIntent) ProtoMessage() {}
 
 func (x *JobIntent) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[8]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -756,7 +1652,7 @@ func (x *JobIntent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobIntent.ProtoReflect.Descriptor instead.
 func (*JobIntent) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{8}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *JobIntent) GetJobName() string {
@@ -805,7 +1701,7 @@ type SslPayload struct {
 
 func (x *SslPayload) Reset() {
 	*x = SslPayload{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[9]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -817,7 +1713,7 @@ func (x *SslPayload) String() string {
 func (*SslPayload) ProtoMessage() {}
 
 func (x *SslPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[9]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -830,7 +1726,7 @@ func (x *SslPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SslPayload.ProtoReflect.Descriptor instead.
 func (*SslPayload) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{9}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *SslPayload) GetDomainName() string {
@@ -864,7 +1760,7 @@ type PackageRequest struct {
 
 func (x *PackageRequest) Reset() {
 	*x = PackageRequest{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[10]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -876,7 +1772,7 @@ func (x *PackageRequest) String() string {
 func (*PackageRequest) ProtoMessage() {}
 
 func (x *PackageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[10]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +1785,7 @@ func (x *PackageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PackageRequest.ProtoReflect.Descriptor instead.
 func (*PackageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{10}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *PackageRequest) GetCommand() string {
@@ -920,7 +1816,7 @@ type FileWriteRequest struct {
 
 func (x *FileWriteRequest) Reset() {
 	*x = FileWriteRequest{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[11]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -932,7 +1828,7 @@ func (x *FileWriteRequest) String() string {
 func (*FileWriteRequest) ProtoMessage() {}
 
 func (x *FileWriteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[11]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -945,7 +1841,7 @@ func (x *FileWriteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileWriteRequest.ProtoReflect.Descriptor instead.
 func (*FileWriteRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{11}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *FileWriteRequest) GetTraceId() string {
@@ -1000,7 +1896,7 @@ type ServiceRequest struct {
 
 func (x *ServiceRequest) Reset() {
 	*x = ServiceRequest{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[12]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1012,7 +1908,7 @@ func (x *ServiceRequest) String() string {
 func (*ServiceRequest) ProtoMessage() {}
 
 func (x *ServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[12]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1025,7 +1921,7 @@ func (x *ServiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceRequest.ProtoReflect.Descriptor instead.
 func (*ServiceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{12}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ServiceRequest) GetServiceName() string {
@@ -1055,7 +1951,7 @@ type ProvisionJailRequest struct {
 
 func (x *ProvisionJailRequest) Reset() {
 	*x = ProvisionJailRequest{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[13]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1067,7 +1963,7 @@ func (x *ProvisionJailRequest) String() string {
 func (*ProvisionJailRequest) ProtoMessage() {}
 
 func (x *ProvisionJailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[13]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1080,7 +1976,7 @@ func (x *ProvisionJailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionJailRequest.ProtoReflect.Descriptor instead.
 func (*ProvisionJailRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{13}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ProvisionJailRequest) GetAppId() string {
@@ -1135,7 +2031,7 @@ type DeployRequest struct {
 
 func (x *DeployRequest) Reset() {
 	*x = DeployRequest{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[14]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1147,7 +2043,7 @@ func (x *DeployRequest) String() string {
 func (*DeployRequest) ProtoMessage() {}
 
 func (x *DeployRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[14]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1160,7 +2056,7 @@ func (x *DeployRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployRequest.ProtoReflect.Descriptor instead.
 func (*DeployRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{14}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DeployRequest) GetTraceId() string {
@@ -1236,7 +2132,7 @@ type DeleteRequest struct {
 
 func (x *DeleteRequest) Reset() {
 	*x = DeleteRequest{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[15]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1248,7 +2144,7 @@ func (x *DeleteRequest) String() string {
 func (*DeleteRequest) ProtoMessage() {}
 
 func (x *DeleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[15]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1261,7 +2157,7 @@ func (x *DeleteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{15}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DeleteRequest) GetAppId() string {
@@ -1288,7 +2184,7 @@ type TeardownRequest struct {
 
 func (x *TeardownRequest) Reset() {
 	*x = TeardownRequest{}
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[16]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1300,7 +2196,7 @@ func (x *TeardownRequest) String() string {
 func (*TeardownRequest) ProtoMessage() {}
 
 func (x *TeardownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[16]
+	mi := &file_proto_kari_agent_v1_agent_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1313,7 +2209,7 @@ func (x *TeardownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TeardownRequest.ProtoReflect.Descriptor instead.
 func (*TeardownRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{16}
+	return file_proto_kari_agent_v1_agent_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *TeardownRequest) GetAppId() string {
@@ -1341,7 +2237,83 @@ const file_proto_kari_agent_v1_agent_proto_rawDesc = "" +
 	"domainName\x12\x19\n" +
 	"\brepo_url\x18\x03 \x01(\tR\arepoUrl\x12\x16\n" +
 	"\x06branch\x18\x04 \x01(\tR\x06branch\x12#\n" +
-	"\rdeployment_id\x18\x05 \x01(\tR\fdeploymentId\"\xa4\x01\n" +
+	"\rdeployment_id\x18\x05 \x01(\tR\fdeploymentId\"\xe5\x01\n" +
+	"\x0eRuntimeRequest\x12\x17\n" +
+	"\asite_id\x18\x01 \x01(\tR\x06siteId\x12\x1f\n" +
+	"\vdomain_name\x18\x02 \x01(\tR\n" +
+	"domainName\x12\x16\n" +
+	"\x06action\x18\x03 \x01(\tR\x06action\x12E\n" +
+	"\benv_vars\x18\x04 \x03(\v2*.kari.agent.v1.RuntimeRequest.EnvVarsEntryR\aenvVars\x1a:\n" +
+	"\fEnvVarsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"=\n" +
+	"\rRuntimeStatus\x12\x18\n" +
+	"\arunning\x18\x01 \x01(\bR\arunning\x12\x12\n" +
+	"\x04logs\x18\x02 \x01(\tR\x04logs\"\x7f\n" +
+	"\x0fDatabaseRequest\x12\x17\n" +
+	"\asite_id\x18\x01 \x01(\tR\x06siteId\x12\x1f\n" +
+	"\vdomain_name\x18\x02 \x01(\tR\n" +
+	"domainName\x12\x16\n" +
+	"\x06action\x18\x03 \x01(\tR\x06action\x12\x1a\n" +
+	"\bpassword\x18\x04 \x01(\tR\bpassword\"t\n" +
+	"\x0eDatabaseStatus\x12\x16\n" +
+	"\x06exists\x18\x01 \x01(\bR\x06exists\x12\x12\n" +
+	"\x04host\x18\x02 \x01(\tR\x04host\x12\x1a\n" +
+	"\bdatabase\x18\x03 \x01(\tR\bdatabase\x12\x1a\n" +
+	"\busername\x18\x04 \x01(\tR\busername\"\x8d\x01\n" +
+	"\vFileRequest\x12\x17\n" +
+	"\asite_id\x18\x01 \x01(\tR\x06siteId\x12\x1f\n" +
+	"\vdomain_name\x18\x02 \x01(\tR\n" +
+	"domainName\x12\x16\n" +
+	"\x06action\x18\x03 \x01(\tR\x06action\x12\x12\n" +
+	"\x04path\x18\x04 \x01(\tR\x04path\x12\x18\n" +
+	"\acontent\x18\x05 \x01(\fR\acontent\"Q\n" +
+	"\tFileEntry\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
+	"\tdirectory\x18\x02 \x01(\bR\tdirectory\x12\x12\n" +
+	"\x04size\x18\x03 \x01(\x04R\x04size\"Z\n" +
+	"\n" +
+	"FileResult\x122\n" +
+	"\aentries\x18\x01 \x03(\v2\x18.kari.agent.v1.FileEntryR\aentries\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\fR\acontent\"~\n" +
+	"\vSFTPRequest\x12\x17\n" +
+	"\asite_id\x18\x01 \x01(\tR\x06siteId\x12\x1f\n" +
+	"\vdomain_name\x18\x02 \x01(\tR\n" +
+	"domainName\x12\x16\n" +
+	"\x06action\x18\x03 \x01(\tR\x06action\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x04 \x01(\tR\tpublicKey\"B\n" +
+	"\n" +
+	"SFTPStatus\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\"~\n" +
+	"\rBackupRequest\x12\x17\n" +
+	"\asite_id\x18\x01 \x01(\tR\x06siteId\x12\x1f\n" +
+	"\vdomain_name\x18\x02 \x01(\tR\n" +
+	"domainName\x12\x16\n" +
+	"\x06action\x18\x03 \x01(\tR\x06action\x12\x1b\n" +
+	"\tbackup_id\x18\x04 \x01(\tR\bbackupId\"=\n" +
+	"\fBackupRecord\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x02 \x01(\tR\tcreatedAt\"\xe9\x01\n" +
+	"\fBackupResult\x125\n" +
+	"\abackups\x18\x01 \x03(\v2\x1b.kari.agent.v1.BackupRecordR\abackups\x12\x18\n" +
+	"\aruntime\x18\x02 \x01(\tR\aruntime\x12'\n" +
+	"\x0fdatabase_exists\x18\x03 \x01(\bR\x0edatabaseExists\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x04 \x01(\tR\n" +
+	"repository\x12\x16\n" +
+	"\x06branch\x18\x05 \x01(\tR\x06branch\x12'\n" +
+	"\x0fcertificate_pem\x18\x06 \x01(\fR\x0ecertificatePem\"F\n" +
+	"\x12HostServiceRequest\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x16\n" +
+	"\x06action\x18\x02 \x01(\tR\x06action\"\x9c\x01\n" +
+	"\x11HostServiceStatus\x12J\n" +
+	"\bservices\x18\x01 \x03(\v2..kari.agent.v1.HostServiceStatus.ServicesEntryR\bservices\x1a;\n" +
+	"\rServicesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa4\x01\n" +
 	"\rSiteChallenge\x12\x17\n" +
 	"\asite_id\x18\x01 \x01(\tR\x06siteId\x12\x1f\n" +
 	"\vdomain_name\x18\x02 \x01(\tR\n" +
@@ -1356,14 +2328,19 @@ const file_proto_kari_agent_v1_agent_proto_rawDesc = "" +
 	"\rfullchain_pem\x18\x03 \x01(\fR\ffullchainPem\x12\x1f\n" +
 	"\vprivkey_pem\x18\x04 \x01(\fR\n" +
 	"privkeyPem\"\a\n" +
-	"\x05Empty\"\xeb\x01\n" +
+	"\x05Empty\"\xa1\x03\n" +
 	"\fSystemStatus\x12\x18\n" +
 	"\ahealthy\x18\x01 \x01(\bR\ahealthy\x12!\n" +
 	"\factive_jails\x18\x02 \x01(\rR\vactiveJails\x12*\n" +
 	"\x11cpu_usage_percent\x18\x03 \x01(\x02R\x0fcpuUsagePercent\x12&\n" +
 	"\x0fmemory_usage_mb\x18\x04 \x01(\x02R\rmemoryUsageMb\x12#\n" +
 	"\ragent_version\x18\x05 \x01(\tR\fagentVersion\x12%\n" +
-	"\x0euptime_seconds\x18\x06 \x01(\x04R\ruptimeSeconds\"\x9b\x01\n" +
+	"\x0euptime_seconds\x18\x06 \x01(\x04R\ruptimeSeconds\x12,\n" +
+	"\x12memory_total_bytes\x18\a \x01(\x04R\x10memoryTotalBytes\x12*\n" +
+	"\x11memory_used_bytes\x18\b \x01(\x04R\x0fmemoryUsedBytes\x12(\n" +
+	"\x10disk_total_bytes\x18\t \x01(\x04R\x0ediskTotalBytes\x120\n" +
+	"\x14disk_available_bytes\x18\n" +
+	" \x01(\x04R\x12diskAvailableBytes\"\x9b\x01\n" +
 	"\rAgentResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1b\n" +
 	"\texit_code\x18\x02 \x01(\x05R\bexitCode\x12\x16\n" +
@@ -1457,8 +2434,15 @@ const file_proto_kari_agent_v1_agent_proto_rawDesc = "" +
 	"\x06RELOAD\x10\x03\x12\n" +
 	"\n" +
 	"\x06ENABLE\x10\x04\x12\v\n" +
-	"\aDISABLE\x10\x052\xea\b\n" +
-	"\vSystemAgent\x12R\n" +
+	"\aDISABLE\x10\x052\xfd\f\n" +
+	"\vSystemAgent\x12P\n" +
+	"\x0eDeployNodeSite\x12 .kari.agent.v1.StaticSiteRequest\x1a\x1c.kari.agent.v1.AgentResponse\x12J\n" +
+	"\vSiteRuntime\x12\x1d.kari.agent.v1.RuntimeRequest\x1a\x1c.kari.agent.v1.RuntimeStatus\x12M\n" +
+	"\fSiteDatabase\x12\x1e.kari.agent.v1.DatabaseRequest\x1a\x1d.kari.agent.v1.DatabaseStatus\x12B\n" +
+	"\tSiteFiles\x12\x1a.kari.agent.v1.FileRequest\x1a\x19.kari.agent.v1.FileResult\x12A\n" +
+	"\bSiteSFTP\x12\x1a.kari.agent.v1.SFTPRequest\x1a\x19.kari.agent.v1.SFTPStatus\x12H\n" +
+	"\vSiteBackups\x12\x1c.kari.agent.v1.BackupRequest\x1a\x1b.kari.agent.v1.BackupResult\x12S\n" +
+	"\fHostServices\x12!.kari.agent.v1.HostServiceRequest\x1a .kari.agent.v1.HostServiceStatus\x12R\n" +
 	"\x10DeployStaticSite\x12 .kari.agent.v1.StaticSiteRequest\x1a\x1c.kari.agent.v1.AgentResponse\x12N\n" +
 	"\x10SetSiteChallenge\x12\x1c.kari.agent.v1.SiteChallenge\x1a\x1c.kari.agent.v1.AgentResponse\x12O\n" +
 	"\x0fActivateSiteTLS\x12\x1e.kari.agent.v1.SiteCertificate\x1a\x1c.kari.agent.v1.AgentResponse\x12D\n" +
@@ -1487,70 +2471,104 @@ func file_proto_kari_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_kari_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_proto_kari_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_proto_kari_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_proto_kari_agent_v1_agent_proto_goTypes = []any{
 	(ServiceAction)(0),           // 0: kari.agent.v1.ServiceAction
 	(FirewallPolicy_Action)(0),   // 1: kari.agent.v1.FirewallPolicy.Action
 	(FirewallPolicy_Protocol)(0), // 2: kari.agent.v1.FirewallPolicy.Protocol
 	(*StaticSiteRequest)(nil),    // 3: kari.agent.v1.StaticSiteRequest
-	(*SiteChallenge)(nil),        // 4: kari.agent.v1.SiteChallenge
-	(*SiteCertificate)(nil),      // 5: kari.agent.v1.SiteCertificate
-	(*Empty)(nil),                // 6: kari.agent.v1.Empty
-	(*SystemStatus)(nil),         // 7: kari.agent.v1.SystemStatus
-	(*AgentResponse)(nil),        // 8: kari.agent.v1.AgentResponse
-	(*LogChunk)(nil),             // 9: kari.agent.v1.LogChunk
-	(*FirewallPolicy)(nil),       // 10: kari.agent.v1.FirewallPolicy
-	(*JobIntent)(nil),            // 11: kari.agent.v1.JobIntent
-	(*SslPayload)(nil),           // 12: kari.agent.v1.SslPayload
-	(*PackageRequest)(nil),       // 13: kari.agent.v1.PackageRequest
-	(*FileWriteRequest)(nil),     // 14: kari.agent.v1.FileWriteRequest
-	(*ServiceRequest)(nil),       // 15: kari.agent.v1.ServiceRequest
-	(*ProvisionJailRequest)(nil), // 16: kari.agent.v1.ProvisionJailRequest
-	(*DeployRequest)(nil),        // 17: kari.agent.v1.DeployRequest
-	(*DeleteRequest)(nil),        // 18: kari.agent.v1.DeleteRequest
-	(*TeardownRequest)(nil),      // 19: kari.agent.v1.TeardownRequest
-	nil,                          // 20: kari.agent.v1.ProvisionJailRequest.EnvVarsEntry
-	nil,                          // 21: kari.agent.v1.DeployRequest.EnvVarsEntry
+	(*RuntimeRequest)(nil),       // 4: kari.agent.v1.RuntimeRequest
+	(*RuntimeStatus)(nil),        // 5: kari.agent.v1.RuntimeStatus
+	(*DatabaseRequest)(nil),      // 6: kari.agent.v1.DatabaseRequest
+	(*DatabaseStatus)(nil),       // 7: kari.agent.v1.DatabaseStatus
+	(*FileRequest)(nil),          // 8: kari.agent.v1.FileRequest
+	(*FileEntry)(nil),            // 9: kari.agent.v1.FileEntry
+	(*FileResult)(nil),           // 10: kari.agent.v1.FileResult
+	(*SFTPRequest)(nil),          // 11: kari.agent.v1.SFTPRequest
+	(*SFTPStatus)(nil),           // 12: kari.agent.v1.SFTPStatus
+	(*BackupRequest)(nil),        // 13: kari.agent.v1.BackupRequest
+	(*BackupRecord)(nil),         // 14: kari.agent.v1.BackupRecord
+	(*BackupResult)(nil),         // 15: kari.agent.v1.BackupResult
+	(*HostServiceRequest)(nil),   // 16: kari.agent.v1.HostServiceRequest
+	(*HostServiceStatus)(nil),    // 17: kari.agent.v1.HostServiceStatus
+	(*SiteChallenge)(nil),        // 18: kari.agent.v1.SiteChallenge
+	(*SiteCertificate)(nil),      // 19: kari.agent.v1.SiteCertificate
+	(*Empty)(nil),                // 20: kari.agent.v1.Empty
+	(*SystemStatus)(nil),         // 21: kari.agent.v1.SystemStatus
+	(*AgentResponse)(nil),        // 22: kari.agent.v1.AgentResponse
+	(*LogChunk)(nil),             // 23: kari.agent.v1.LogChunk
+	(*FirewallPolicy)(nil),       // 24: kari.agent.v1.FirewallPolicy
+	(*JobIntent)(nil),            // 25: kari.agent.v1.JobIntent
+	(*SslPayload)(nil),           // 26: kari.agent.v1.SslPayload
+	(*PackageRequest)(nil),       // 27: kari.agent.v1.PackageRequest
+	(*FileWriteRequest)(nil),     // 28: kari.agent.v1.FileWriteRequest
+	(*ServiceRequest)(nil),       // 29: kari.agent.v1.ServiceRequest
+	(*ProvisionJailRequest)(nil), // 30: kari.agent.v1.ProvisionJailRequest
+	(*DeployRequest)(nil),        // 31: kari.agent.v1.DeployRequest
+	(*DeleteRequest)(nil),        // 32: kari.agent.v1.DeleteRequest
+	(*TeardownRequest)(nil),      // 33: kari.agent.v1.TeardownRequest
+	nil,                          // 34: kari.agent.v1.RuntimeRequest.EnvVarsEntry
+	nil,                          // 35: kari.agent.v1.HostServiceStatus.ServicesEntry
+	nil,                          // 36: kari.agent.v1.ProvisionJailRequest.EnvVarsEntry
+	nil,                          // 37: kari.agent.v1.DeployRequest.EnvVarsEntry
 }
 var file_proto_kari_agent_v1_agent_proto_depIdxs = []int32{
-	1,  // 0: kari.agent.v1.FirewallPolicy.action:type_name -> kari.agent.v1.FirewallPolicy.Action
-	2,  // 1: kari.agent.v1.FirewallPolicy.protocol:type_name -> kari.agent.v1.FirewallPolicy.Protocol
-	0,  // 2: kari.agent.v1.ServiceRequest.action:type_name -> kari.agent.v1.ServiceAction
-	20, // 3: kari.agent.v1.ProvisionJailRequest.env_vars:type_name -> kari.agent.v1.ProvisionJailRequest.EnvVarsEntry
-	21, // 4: kari.agent.v1.DeployRequest.env_vars:type_name -> kari.agent.v1.DeployRequest.EnvVarsEntry
-	3,  // 5: kari.agent.v1.SystemAgent.DeployStaticSite:input_type -> kari.agent.v1.StaticSiteRequest
-	4,  // 6: kari.agent.v1.SystemAgent.SetSiteChallenge:input_type -> kari.agent.v1.SiteChallenge
-	5,  // 7: kari.agent.v1.SystemAgent.ActivateSiteTLS:input_type -> kari.agent.v1.SiteCertificate
-	6,  // 8: kari.agent.v1.SystemAgent.GetSystemStatus:input_type -> kari.agent.v1.Empty
-	13, // 9: kari.agent.v1.SystemAgent.ExecutePackageCommand:input_type -> kari.agent.v1.PackageRequest
-	16, // 10: kari.agent.v1.SystemAgent.ProvisionAppJail:input_type -> kari.agent.v1.ProvisionJailRequest
-	15, // 11: kari.agent.v1.SystemAgent.ManageService:input_type -> kari.agent.v1.ServiceRequest
-	17, // 12: kari.agent.v1.SystemAgent.StreamDeployment:input_type -> kari.agent.v1.DeployRequest
-	18, // 13: kari.agent.v1.SystemAgent.DeleteDeployment:input_type -> kari.agent.v1.DeleteRequest
-	19, // 14: kari.agent.v1.SystemAgent.TeardownJail:input_type -> kari.agent.v1.TeardownRequest
-	14, // 15: kari.agent.v1.SystemAgent.WriteSystemFile:input_type -> kari.agent.v1.FileWriteRequest
-	12, // 16: kari.agent.v1.SystemAgent.InstallCertificate:input_type -> kari.agent.v1.SslPayload
-	10, // 17: kari.agent.v1.SystemAgent.ApplyFirewallPolicy:input_type -> kari.agent.v1.FirewallPolicy
-	11, // 18: kari.agent.v1.SystemAgent.ScheduleJob:input_type -> kari.agent.v1.JobIntent
-	8,  // 19: kari.agent.v1.SystemAgent.DeployStaticSite:output_type -> kari.agent.v1.AgentResponse
-	8,  // 20: kari.agent.v1.SystemAgent.SetSiteChallenge:output_type -> kari.agent.v1.AgentResponse
-	8,  // 21: kari.agent.v1.SystemAgent.ActivateSiteTLS:output_type -> kari.agent.v1.AgentResponse
-	7,  // 22: kari.agent.v1.SystemAgent.GetSystemStatus:output_type -> kari.agent.v1.SystemStatus
-	8,  // 23: kari.agent.v1.SystemAgent.ExecutePackageCommand:output_type -> kari.agent.v1.AgentResponse
-	8,  // 24: kari.agent.v1.SystemAgent.ProvisionAppJail:output_type -> kari.agent.v1.AgentResponse
-	8,  // 25: kari.agent.v1.SystemAgent.ManageService:output_type -> kari.agent.v1.AgentResponse
-	9,  // 26: kari.agent.v1.SystemAgent.StreamDeployment:output_type -> kari.agent.v1.LogChunk
-	8,  // 27: kari.agent.v1.SystemAgent.DeleteDeployment:output_type -> kari.agent.v1.AgentResponse
-	8,  // 28: kari.agent.v1.SystemAgent.TeardownJail:output_type -> kari.agent.v1.AgentResponse
-	8,  // 29: kari.agent.v1.SystemAgent.WriteSystemFile:output_type -> kari.agent.v1.AgentResponse
-	8,  // 30: kari.agent.v1.SystemAgent.InstallCertificate:output_type -> kari.agent.v1.AgentResponse
-	8,  // 31: kari.agent.v1.SystemAgent.ApplyFirewallPolicy:output_type -> kari.agent.v1.AgentResponse
-	8,  // 32: kari.agent.v1.SystemAgent.ScheduleJob:output_type -> kari.agent.v1.AgentResponse
-	19, // [19:33] is the sub-list for method output_type
-	5,  // [5:19] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	34, // 0: kari.agent.v1.RuntimeRequest.env_vars:type_name -> kari.agent.v1.RuntimeRequest.EnvVarsEntry
+	9,  // 1: kari.agent.v1.FileResult.entries:type_name -> kari.agent.v1.FileEntry
+	14, // 2: kari.agent.v1.BackupResult.backups:type_name -> kari.agent.v1.BackupRecord
+	35, // 3: kari.agent.v1.HostServiceStatus.services:type_name -> kari.agent.v1.HostServiceStatus.ServicesEntry
+	1,  // 4: kari.agent.v1.FirewallPolicy.action:type_name -> kari.agent.v1.FirewallPolicy.Action
+	2,  // 5: kari.agent.v1.FirewallPolicy.protocol:type_name -> kari.agent.v1.FirewallPolicy.Protocol
+	0,  // 6: kari.agent.v1.ServiceRequest.action:type_name -> kari.agent.v1.ServiceAction
+	36, // 7: kari.agent.v1.ProvisionJailRequest.env_vars:type_name -> kari.agent.v1.ProvisionJailRequest.EnvVarsEntry
+	37, // 8: kari.agent.v1.DeployRequest.env_vars:type_name -> kari.agent.v1.DeployRequest.EnvVarsEntry
+	3,  // 9: kari.agent.v1.SystemAgent.DeployNodeSite:input_type -> kari.agent.v1.StaticSiteRequest
+	4,  // 10: kari.agent.v1.SystemAgent.SiteRuntime:input_type -> kari.agent.v1.RuntimeRequest
+	6,  // 11: kari.agent.v1.SystemAgent.SiteDatabase:input_type -> kari.agent.v1.DatabaseRequest
+	8,  // 12: kari.agent.v1.SystemAgent.SiteFiles:input_type -> kari.agent.v1.FileRequest
+	11, // 13: kari.agent.v1.SystemAgent.SiteSFTP:input_type -> kari.agent.v1.SFTPRequest
+	13, // 14: kari.agent.v1.SystemAgent.SiteBackups:input_type -> kari.agent.v1.BackupRequest
+	16, // 15: kari.agent.v1.SystemAgent.HostServices:input_type -> kari.agent.v1.HostServiceRequest
+	3,  // 16: kari.agent.v1.SystemAgent.DeployStaticSite:input_type -> kari.agent.v1.StaticSiteRequest
+	18, // 17: kari.agent.v1.SystemAgent.SetSiteChallenge:input_type -> kari.agent.v1.SiteChallenge
+	19, // 18: kari.agent.v1.SystemAgent.ActivateSiteTLS:input_type -> kari.agent.v1.SiteCertificate
+	20, // 19: kari.agent.v1.SystemAgent.GetSystemStatus:input_type -> kari.agent.v1.Empty
+	27, // 20: kari.agent.v1.SystemAgent.ExecutePackageCommand:input_type -> kari.agent.v1.PackageRequest
+	30, // 21: kari.agent.v1.SystemAgent.ProvisionAppJail:input_type -> kari.agent.v1.ProvisionJailRequest
+	29, // 22: kari.agent.v1.SystemAgent.ManageService:input_type -> kari.agent.v1.ServiceRequest
+	31, // 23: kari.agent.v1.SystemAgent.StreamDeployment:input_type -> kari.agent.v1.DeployRequest
+	32, // 24: kari.agent.v1.SystemAgent.DeleteDeployment:input_type -> kari.agent.v1.DeleteRequest
+	33, // 25: kari.agent.v1.SystemAgent.TeardownJail:input_type -> kari.agent.v1.TeardownRequest
+	28, // 26: kari.agent.v1.SystemAgent.WriteSystemFile:input_type -> kari.agent.v1.FileWriteRequest
+	26, // 27: kari.agent.v1.SystemAgent.InstallCertificate:input_type -> kari.agent.v1.SslPayload
+	24, // 28: kari.agent.v1.SystemAgent.ApplyFirewallPolicy:input_type -> kari.agent.v1.FirewallPolicy
+	25, // 29: kari.agent.v1.SystemAgent.ScheduleJob:input_type -> kari.agent.v1.JobIntent
+	22, // 30: kari.agent.v1.SystemAgent.DeployNodeSite:output_type -> kari.agent.v1.AgentResponse
+	5,  // 31: kari.agent.v1.SystemAgent.SiteRuntime:output_type -> kari.agent.v1.RuntimeStatus
+	7,  // 32: kari.agent.v1.SystemAgent.SiteDatabase:output_type -> kari.agent.v1.DatabaseStatus
+	10, // 33: kari.agent.v1.SystemAgent.SiteFiles:output_type -> kari.agent.v1.FileResult
+	12, // 34: kari.agent.v1.SystemAgent.SiteSFTP:output_type -> kari.agent.v1.SFTPStatus
+	15, // 35: kari.agent.v1.SystemAgent.SiteBackups:output_type -> kari.agent.v1.BackupResult
+	17, // 36: kari.agent.v1.SystemAgent.HostServices:output_type -> kari.agent.v1.HostServiceStatus
+	22, // 37: kari.agent.v1.SystemAgent.DeployStaticSite:output_type -> kari.agent.v1.AgentResponse
+	22, // 38: kari.agent.v1.SystemAgent.SetSiteChallenge:output_type -> kari.agent.v1.AgentResponse
+	22, // 39: kari.agent.v1.SystemAgent.ActivateSiteTLS:output_type -> kari.agent.v1.AgentResponse
+	21, // 40: kari.agent.v1.SystemAgent.GetSystemStatus:output_type -> kari.agent.v1.SystemStatus
+	22, // 41: kari.agent.v1.SystemAgent.ExecutePackageCommand:output_type -> kari.agent.v1.AgentResponse
+	22, // 42: kari.agent.v1.SystemAgent.ProvisionAppJail:output_type -> kari.agent.v1.AgentResponse
+	22, // 43: kari.agent.v1.SystemAgent.ManageService:output_type -> kari.agent.v1.AgentResponse
+	23, // 44: kari.agent.v1.SystemAgent.StreamDeployment:output_type -> kari.agent.v1.LogChunk
+	22, // 45: kari.agent.v1.SystemAgent.DeleteDeployment:output_type -> kari.agent.v1.AgentResponse
+	22, // 46: kari.agent.v1.SystemAgent.TeardownJail:output_type -> kari.agent.v1.AgentResponse
+	22, // 47: kari.agent.v1.SystemAgent.WriteSystemFile:output_type -> kari.agent.v1.AgentResponse
+	22, // 48: kari.agent.v1.SystemAgent.InstallCertificate:output_type -> kari.agent.v1.AgentResponse
+	22, // 49: kari.agent.v1.SystemAgent.ApplyFirewallPolicy:output_type -> kari.agent.v1.AgentResponse
+	22, // 50: kari.agent.v1.SystemAgent.ScheduleJob:output_type -> kari.agent.v1.AgentResponse
+	30, // [30:51] is the sub-list for method output_type
+	9,  // [9:30] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_proto_kari_agent_v1_agent_proto_init() }
@@ -1558,15 +2576,15 @@ func file_proto_kari_agent_v1_agent_proto_init() {
 	if File_proto_kari_agent_v1_agent_proto != nil {
 		return
 	}
-	file_proto_kari_agent_v1_agent_proto_msgTypes[7].OneofWrappers = []any{}
-	file_proto_kari_agent_v1_agent_proto_msgTypes[14].OneofWrappers = []any{}
+	file_proto_kari_agent_v1_agent_proto_msgTypes[21].OneofWrappers = []any{}
+	file_proto_kari_agent_v1_agent_proto_msgTypes[28].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_kari_agent_v1_agent_proto_rawDesc), len(file_proto_kari_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   19,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

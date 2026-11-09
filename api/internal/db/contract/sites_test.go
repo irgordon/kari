@@ -20,17 +20,17 @@ func TestStaticSitePersistenceAndOwnership(t *testing.T) {
 	other := insertUser(t, suite.pool, superadminRoleID, "other-owner")
 	sites := &services.Sites{DB: suite.pool, PanelURL: "https://panel.example.test"}
 	ctx := context.Background()
-	_, err := sites.Create(ctx, owner, "panel.example.test", "https://github.com/example/site.git", "main")
+	_, err := sites.Create(ctx, owner, "panel.example.test", "https://github.com/example/site.git", "main", "static")
 	if !errors.Is(err, services.ErrSiteInput) {
 		t.Fatal("panel hostname was not reserved")
 	}
-	site, err := sites.Create(ctx, owner, "www.example.test", "https://github.com/example/site.git", "main")
+	site, err := sites.Create(ctx, owner, "www.example.test", "https://github.com/example/site.git", "main", "static")
 	requireNoError(t, err)
-	_, err = sites.Create(ctx, owner, "www.example.test", "https://github.com/example/site.git", "main")
+	_, err = sites.Create(ctx, owner, "www.example.test", "https://github.com/example/site.git", "main", "static")
 	if !errors.Is(err, services.ErrSiteInput) {
 		t.Fatalf("duplicate site: %v", err)
 	}
-	_, err = sites.Create(ctx, owner, "another.example.test", "https://user:password@github.com/example/site.git", "main")
+	_, err = sites.Create(ctx, owner, "another.example.test", "https://user:password@github.com/example/site.git", "main", "static")
 	if !errors.Is(err, services.ErrSiteInput) {
 		t.Fatalf("embedded credentials accepted: %v", err)
 	}
@@ -98,4 +98,29 @@ func TestStaticSitePersistenceAndOwnership(t *testing.T) {
 	}
 	_, err = sites.Deploy(ctx, owner, site.ID)
 	requireNoError(t, err)
+	node, err := sites.Create(ctx, owner, "node.example.test", "https://github.com/example/node.git", "main", "nodejs")
+	requireNoError(t, err)
+	stored, err := sites.Get(ctx, owner, node.ID)
+	requireNoError(t, err)
+	if stored.Runtime != "nodejs" {
+		t.Fatal("runtime was not persisted")
+	}
+	_, err = sites.Workload(ctx, other, node.ID, "database", services.WorkloadInput{Action: "create"})
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatal("cross-owner workload operation was accepted")
+	}
+	_, err = sites.Workload(ctx, owner, node.ID, "backups", services.WorkloadInput{Action: "restore", BackupID: uuid.NewString(), Confirm: "wrong.example.test"})
+	if !errors.Is(err, services.ErrSiteInput) {
+		t.Fatal("restore without hostname confirmation was accepted")
+	}
+	_, err = sites.Workload(ctx, owner, node.ID, "sftp", services.WorkloadInput{Action: "enable", PublicKey: "command=evil ssh-ed25519 invalid"})
+	if !errors.Is(err, services.ErrSiteInput) {
+		t.Fatal("SFTP authorization options were accepted")
+	}
+	_, err = suite.pool.Exec(ctx, `UPDATE applications SET operation='backups' WHERE id=$1`, node.ID)
+	requireNoError(t, err)
+	_, err = sites.Deploy(ctx, owner, node.ID)
+	if !errors.Is(err, services.ErrSiteBusy) {
+		t.Fatal("publication raced a workload operation")
+	}
 }

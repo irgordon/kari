@@ -77,14 +77,20 @@ func (w *DeploymentWorker) processNextTask(ctx context.Context) {
 		return
 	}
 	// Publishing belongs to the worker, not the lifetime of a browser log viewer.
-	operation, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	operation, cancel := context.WithTimeout(ctx, 6*time.Minute)
 	defer cancel()
-	result, err := w.agent.DeployStaticSite(operation, &agent.StaticSiteRequest{
+	request := &agent.StaticSiteRequest{
 		SiteId: deployment.AppID, DomainName: deployment.DomainName,
 		RepoUrl: deployment.RepoURL, Branch: deployment.Branch, DeploymentId: deployment.ID,
-	})
+	}
+	var result *agent.AgentResponse
+	if deployment.EnvVars["runtime"] == "nodejs" {
+		result, err = w.agent.DeployNodeSite(operation, request)
+	} else {
+		result, err = w.agent.DeployStaticSite(operation, request)
+	}
 	if err != nil || !result.GetSuccess() {
-		w.failDeployment(ctx, deployment, fmt.Errorf("static publication failed; check the repository, index.html, and host journal"))
+		w.failDeployment(ctx, deployment, fmt.Errorf("publication failed; check repository/lockfile, runtime health, and host journal"))
 		return
 	}
 	if err := w.repo.AppendLog(ctx, deployment.ID, result.Stdout); err != nil {

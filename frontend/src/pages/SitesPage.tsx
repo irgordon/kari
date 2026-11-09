@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { apiGet, apiPost } from '../lib/api'
 
-type Site = { id: string; domain_name: string; repo_url: string; branch: string; status: string; ssl_status: string; expires_at: string; latest_deployment_id: string | null; latest_deployment_status: string | null }
+type Site = { id: string; domain_name: string; runtime: string; repo_url: string; branch: string; status: string; ssl_status: string; expires_at: string; latest_deployment_id: string | null; latest_deployment_status: string | null }
 type Deployment = { id: string; status: string; logs: string[] }
 
 export function SitesPage() {
@@ -39,7 +40,7 @@ export function SitesPage() {
     const data = new FormData(form)
     setBusy(true); setError('')
     try {
-      await apiPost('/api/v1/sites', { domain_name: data.get('domain'), repo_url: data.get('repository'), branch: data.get('branch') })
+      await apiPost('/api/v1/sites', { domain_name: data.get('domain'), repo_url: data.get('repository'), branch: data.get('branch'), runtime: data.get('runtime') })
       form.reset(); setAttempt(v => v + 1)
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not create site') }
     finally { setBusy(false) }
@@ -66,22 +67,24 @@ export function SitesPage() {
     finally { const key = form.elements.namedItem('private_key_pem') as HTMLTextAreaElement | null; if (key) key.value = ''; setBusy(false) }
   }
   return <div className="page stack">
-    <header className="page-title"><h1>Websites</h1><p>Publish prepared static websites from public HTTPS Git repositories.</p></header>
-    <p>No build commands run on the server. Put the finished index.html and public assets at the repository root. Hidden files are excluded; symlinks are rejected. Maximum 100 MiB and 10,000 entries.</p>
+    <header className="page-title"><h1>Websites</h1><p>Host static websites and Node.js applications from public HTTPS Git repositories.</p></header>
+    <p>Static: prepared index.html and public assets, maximum 100 MiB/10,000 entries. Node.js: package-lock.json, optional build script, and npm start serving / on PORT=3000. Dependency install scripts are disabled. Configure environment and database before publishing.</p>
     {error && <div role="alert" className="alert error">{error}<button onClick={() => setAttempt(v => v + 1)}>Refresh sites</button></div>}
     <form className="card stack" onSubmit={create}>
       <h2>Create a website</h2>
       <label className="field">Domain<input name="domain" required placeholder="www.example.com" maxLength={253} /></label>
       <label className="field">Public Git repository<input name="repository" type="url" required placeholder="https://github.com/owner/prepared-site.git" maxLength={2048} /></label>
       <label className="field">Branch<input name="branch" required defaultValue="main" maxLength={100} /></label>
+      <label className="field">Runtime<select name="runtime"><option value="static">Static website</option><option value="nodejs">Node.js 24.19.0</option></select></label>
       <button disabled={busy}>Create website</button>
     </form>
     <section className="card stack"><h2>Your websites</h2>
       {sites === null ? <p role="status">{error ? 'Website data is unavailable.' : 'Loading websites…'}</p> : sites.length === 0 ? <p>No websites yet. Create one above, then publish it.</p> : sites.map(site => <article className="card stack" key={site.id}>
-        <h3>{site.domain_name}</h3><p>{site.repo_url} · {site.branch}</p>
+        <h3>{site.domain_name}</h3><p>{site.runtime} · {site.repo_url} · {site.branch}</p>
         <p>Publication: {site.status} · Latest attempt: {site.latest_deployment_status ?? 'none'} · TLS: {site.ssl_status}{site.ssl_status === 'active' ? ` · expires ${new Date(site.expires_at).toLocaleDateString()}` : ''}</p>
         <p>Point this hostname’s A/AAAA records to this server. Do not leave an AAAA record pointing to a different server.</p>
         <div className="inline-actions">
+          <Link to={`/sites/${site.id}`}>Manage website</Link>
           <button disabled={busy || (deployment?.site === site.id && ['pending', 'running'].includes(deployment.value.status))} onClick={() => void publish(site)}>Publish latest branch</button>
           <button disabled={busy || site.status !== 'running'} onClick={() => setSelected(site)}>Configure TLS</button>
           {site.latest_deployment_id && <button onClick={() => {

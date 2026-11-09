@@ -85,11 +85,11 @@ func (r *PostgresDeploymentRepository) UpdateStatus(ctx context.Context, id stri
 		return err
 	}
 	if status == domain.StatusSuccess || status == domain.StatusFailed {
-		_, err = tx.Exec(ctx, `UPDATE applications a SET status=CASE WHEN EXISTS(SELECT 1 FROM deployments p WHERE p.app_id=a.id AND p.status='success') THEN 'running' ELSE 'failed' END WHERE a.id=(SELECT app_id FROM deployments WHERE id=$1) AND a.app_type='static'`, id)
+		_, err = tx.Exec(ctx, `UPDATE applications a SET status=CASE WHEN $2='success' THEN 'running' WHEN EXISTS(SELECT 1 FROM deployments p WHERE p.app_id=a.id AND p.status='success') THEN a.status ELSE 'failed' END WHERE a.id=(SELECT app_id FROM deployments WHERE id=$1) AND a.app_type IN ('static','nodejs')`, id, status)
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `UPDATE domains d SET status=CASE WHEN a.status='running' THEN 'active' ELSE 'failed' END FROM applications a WHERE d.app_id=a.id AND a.id=(SELECT app_id FROM deployments WHERE id=$1) AND a.app_type='static'`, id)
+		_, err = tx.Exec(ctx, `UPDATE domains d SET status=CASE WHEN a.status='running' THEN 'active' ELSE 'failed' END FROM applications a WHERE d.app_id=a.id AND a.id=(SELECT app_id FROM deployments WHERE id=$1) AND a.app_type IN ('static','nodejs')`, id)
 		if err != nil {
 			return err
 		}

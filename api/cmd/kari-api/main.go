@@ -144,6 +144,7 @@ func main() {
 	siteHandler := &handlers.SiteHandler{Service: sites}
 
 	authMiddleware := middleware.NewAuthMiddleware(authService, roleService, userRepo, logger)
+	workloadHandler := &handlers.WorkloadHandler{Service: sites, Auth: authMiddleware}
 
 	// --- 5. Background Workers ---
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
@@ -171,16 +172,17 @@ func main() {
 
 	// --- 6. HTTP Gateway ---
 	mux := router.NewRouter(router.RouterConfig{
-		AllowedOrigins: cfg.AllowedOrigins,
-		TrustedProxies: cfg.TrustedProxies,
-		AuthHandler:    authHandler,
-		EmailHandler:   emailHandler,
-		DeployHandler:  deployHandler,
-		SiteHandler:    siteHandler,
-		SetupHandler:   setupHandler,
-		AuthMiddleware: authMiddleware,
-		ReadinessCheck: newReadinessCheck(dbPool, healthProber, cfg.RequireAgent),
-		Logger:         logger,
+		AllowedOrigins:  cfg.AllowedOrigins,
+		TrustedProxies:  cfg.TrustedProxies,
+		AuthHandler:     authHandler,
+		EmailHandler:    emailHandler,
+		DeployHandler:   deployHandler,
+		SiteHandler:     siteHandler,
+		WorkloadHandler: workloadHandler,
+		SetupHandler:    setupHandler,
+		AuthMiddleware:  authMiddleware,
+		ReadinessCheck:  newReadinessCheck(dbPool, healthProber, cfg.RequireAgent),
+		Logger:          logger,
 	})
 
 	server := &http.Server{

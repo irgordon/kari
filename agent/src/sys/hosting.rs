@@ -5,10 +5,11 @@ use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use zeroize::Zeroize;
 
-fn uuid(value: &str) -> bool {
+pub(super) fn uuid(value: &str) -> bool {
     value.len() == 36
         && value.bytes().enumerate().all(|(i, c)| {
             if [8, 13, 18, 23].contains(&i) {
@@ -70,7 +71,7 @@ fn site_path(config: &AgentConfig, id: &str, domain: &str) -> Result<PathBuf, St
     Ok(config.web_root.join("sites").join(id))
 }
 
-fn bound_site(config: &AgentConfig, id: &str, domain: &str) -> Result<PathBuf, String> {
+pub(super) fn bound_site(config: &AgentConfig, id: &str, domain: &str) -> Result<PathBuf, String> {
     let path = site_path(config, id, domain)?;
     if fs::read_to_string(path.join("domain")).map_err(|e| e.to_string())? != domain {
         return Err("Site/domain binding does not match".into());
@@ -78,7 +79,7 @@ fn bound_site(config: &AgentConfig, id: &str, domain: &str) -> Result<PathBuf, S
     Ok(path)
 }
 
-async fn run(program: &str, args: &[&str]) -> Result<(), String> {
+pub(super) async fn run(program: &str, args: &[&str]) -> Result<(), String> {
     let status = Command::new(program)
         .args(args)
         .stdin(Stdio::null())
@@ -94,7 +95,7 @@ async fn run(program: &str, args: &[&str]) -> Result<(), String> {
     Ok(())
 }
 
-fn private_write(path: &Path, bytes: &[u8], mode: u32) -> Result<(), String> {
+pub(super) fn private_write(path: &Path, bytes: &[u8], mode: u32) -> Result<(), String> {
     use std::io::Write;
     let parent = path.parent().ok_or("Missing parent")?;
     let mut temp = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
@@ -142,7 +143,7 @@ fn copy_public(
     Ok(())
 }
 
-async fn activate_proxy(
+pub(super) async fn activate_proxy(
     config: &AgentConfig,
     id: &str,
     domain: &str,
@@ -154,10 +155,26 @@ async fn activate_proxy(
         "server {{\n listen 80;\n server_name {domain};\n location ^~ /.well-known/acme-challenge/ {{ alias {}/; }}\n",
         challenge.display()
     );
-    let static_location = format!(
-        "root {}/current;\n index index.html;\n location ~ /\\. {{ deny all; }}\n location / {{ try_files $uri $uri/ =404; }}\n",
+    let mut static_location = format!(
+        "root {}/current;\n disable_symlinks if_not_owner;\n index index.html;\n location ~ /\\. {{ deny all; }}\n location / {{ try_files $uri $uri/ =404; }}\n",
         root.display()
     );
+    let mut revision = id.to_string();
+    if let Ok(port) = fs::read_to_string(root.join("runtime-port")) {
+        let port: u16 = port.trim().parse().map_err(|_| "Invalid runtime port")?;
+        revision = port.to_string();
+        static_location = format!(
+            "location / {{ proxy_pass http://127.0.0.1:{port}; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $scheme; }}\n"
+        );
+    } else {
+        static_location.push_str(&format!(
+            "location /files/ {{ alias {}/files/; }}\n",
+            root.display()
+        ));
+    }
+    // A successful reload command only signals the master. This loopback-only
+    // location proves a new worker has accepted this exact routing revision.
+    content.push_str(&format!("location = /.__kari_route {{ if ($remote_addr != 127.0.0.1) {{ return 404; }} return 200 \"{revision}\"; }}\n"));
     if let Some(cert) = tls {
         content.push_str(&format!("location / {{ return 301 https://{domain}$request_uri; }}\n}}\nserver {{\n listen 443 ssl;\n server_name {domain};\n ssl_certificate {}/fullchain.pem;\n ssl_certificate_key {}/privkey.pem;\n ssl_protocols TLSv1.2 TLSv1.3;\n{static_location}}}\n", cert.display(), cert.display()));
     } else {
@@ -187,6 +204,7 @@ async fn activate_proxy(
     let result = async {
         run("nginx", &["-t"]).await?;
         run("systemctl", &["reload", "nginx"]).await?;
+        wait_route(domain, &revision).await?;
         if let Some(certificate) = tls {
             wait_certificate(domain, certificate).await?;
         }
@@ -206,6 +224,37 @@ async fn activate_proxy(
         run("systemctl", &["reload", "nginx"]).await?;
     }
     result
+}
+
+async fn wait_route(domain: &str, revision: &str) -> Result<(), String> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while tokio::time::Instant::now() < deadline {
+        let probe = async {
+            let mut stream = tokio::net::TcpStream::connect("127.0.0.1:80").await?;
+            stream
+                .write_all(
+                    format!("GET /.__kari_route HTTP/1.0\r\nHost: {domain}\r\n\r\n").as_bytes(),
+                )
+                .await?;
+            let mut response = Vec::new();
+            stream.take(2048).read_to_end(&mut response).await?;
+            let text = String::from_utf8_lossy(&response);
+            Ok::<bool, std::io::Error>(
+                text.starts_with("HTTP/1.1 200")
+                    && text
+                        .split_once("\r\n\r\n")
+                        .is_some_and(|(_, body)| body == revision),
+            )
+        };
+        if matches!(
+            tokio::time::timeout(Duration::from_secs(1), probe).await,
+            Ok(Ok(true))
+        ) {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Err("Nginx did not begin serving the expected route; activation reverted".into())
 }
 
 async fn wait_certificate(domain: &str, directory: &Path) -> Result<(), String> {
@@ -252,8 +301,61 @@ async fn wait_certificate(domain: &str, directory: &Path) -> Result<(), String> 
     Err("Nginx did not begin serving the expected certificate; activation reverted".into())
 }
 
-pub async fn deploy(config: &AgentConfig, req: StaticSiteRequest) -> Result<String, String> {
-    let root = site_path(config, &req.site_id, &req.domain_name)?;
+pub(super) async fn prepare(
+    config: &AgentConfig,
+    id: &str,
+    domain: &str,
+) -> Result<(PathBuf, String), String> {
+    let root = site_path(config, id, domain)?;
+    fs::create_dir_all(root.join("releases")).map_err(|e| e.to_string())?;
+    for directory in [
+        &config.web_root,
+        &config.web_root.join("sites"),
+        &root,
+        &root.join("releases"),
+    ] {
+        fs::set_permissions(directory, fs::Permissions::from_mode(0o755))
+            .map_err(|e| e.to_string())?;
+    }
+    if root.join("domain").exists() {
+        bound_site(config, id, domain)?;
+    } else {
+        private_write(&root.join("domain"), domain.as_bytes(), 0o600)?;
+    }
+    fs::create_dir_all(root.join("challenge")).map_err(|e| e.to_string())?;
+    fs::set_permissions(root.join("challenge"), fs::Permissions::from_mode(0o755))
+        .map_err(|e| e.to_string())?;
+    let user = format!("ks-{}", id.replace('-', ""));
+    let user = user[..27].to_string();
+    let exists = Command::new("id")
+        .args(["-u", &user])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !exists.status.success() {
+        run(
+            "useradd",
+            &[
+                "--system",
+                "--user-group",
+                "--no-create-home",
+                "--shell",
+                "/usr/sbin/nologin",
+                &user,
+            ],
+        )
+        .await?;
+    } else if String::from_utf8_lossy(&exists.stdout).trim() == "0" {
+        return Err("Refusing root fetch identity".into());
+    }
+    super::workloads::ensure_files(&root, &user).await?;
+    Ok((root, user))
+}
+
+pub(super) async fn fetch(
+    config: &AgentConfig,
+    req: &StaticSiteRequest,
+) -> Result<(PathBuf, tempfile::TempDir, PathBuf, String), String> {
     if !uuid(&req.deployment_id)
         || !req.repo_url.starts_with("https://")
         || req.repo_url.len() > 2048
@@ -272,54 +374,17 @@ pub async fn deploy(config: &AgentConfig, req: StaticSiteRequest) -> Result<Stri
     {
         return Err("A public HTTPS Git URL, branch, and deployment UUID are required".into());
     }
-    fs::create_dir_all(root.join("releases")).map_err(|e| e.to_string())?;
-    for directory in [
-        &config.web_root,
-        &config.web_root.join("sites"),
-        &root,
-        &root.join("releases"),
-    ] {
-        fs::set_permissions(directory, fs::Permissions::from_mode(0o755))
-            .map_err(|e| e.to_string())?;
-    }
-    if root.join("domain").exists() {
-        bound_site(config, &req.site_id, &req.domain_name)?;
-    } else {
-        private_write(&root.join("domain"), req.domain_name.as_bytes(), 0o600)?;
-    }
-    fs::create_dir_all(root.join("challenge")).map_err(|e| e.to_string())?;
-    fs::set_permissions(root.join("challenge"), fs::Permissions::from_mode(0o755))
-        .map_err(|e| e.to_string())?;
-    let user = format!("ks-{}", req.site_id.replace('-', ""));
-    let user = &user[..27];
-    let exists = Command::new("id")
-        .args(["-u", user])
-        .output()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !exists.status.success() {
-        run(
-            "useradd",
-            &[
-                "--system",
-                "--user-group",
-                "--no-create-home",
-                "--shell",
-                "/usr/sbin/nologin",
-                user,
-            ],
-        )
-        .await?;
-    } else if String::from_utf8_lossy(&exists.stdout).trim() == "0" {
-        return Err("Refusing root fetch identity".into());
-    }
+    let (root, user) = prepare(config, &req.site_id, &req.domain_name).await?;
     let staging = tempfile::Builder::new()
         .prefix("kari-fetch-")
         .tempdir_in(&root)
         .map_err(|e| e.to_string())?;
     run(
         "chown",
-        &[user, staging.path().to_str().ok_or("Invalid staging path")?],
+        &[
+            &user,
+            staging.path().to_str().ok_or("Invalid staging path")?,
+        ],
     )
     .await?;
     // Git reads untrusted repository data only inside a bounded, per-site service.
@@ -381,6 +446,11 @@ pub async fn deploy(config: &AgentConfig, req: StaticSiteRequest) -> Result<Stri
         ],
     )
     .await?;
+    Ok((root, staging, checkout, user))
+}
+
+pub async fn deploy(config: &AgentConfig, req: StaticSiteRequest) -> Result<String, String> {
+    let (root, _staging, checkout, _user) = fetch(config, &req).await?;
     if !fs::symlink_metadata(checkout.join("index.html"))
         .map_err(|_| "Repository root must contain index.html")?
         .is_file()
@@ -407,6 +477,17 @@ pub async fn deploy(config: &AgentConfig, req: StaticSiteRequest) -> Result<Stri
         return Err(error);
     }
     fs::rename(&candidate, &current).map_err(|e| e.to_string())?;
+    let source = super::workloads::RuntimeConfig {
+        runtime: "static".into(),
+        env: std::collections::HashMap::new(),
+        repository: req.repo_url,
+        branch: req.branch,
+    };
+    private_write(
+        &root.join("source.json"),
+        &serde_json::to_vec(&source).map_err(|e| e.to_string())?,
+        0o600,
+    )?;
     Ok("Static site published; no repository code or build command was executed".into())
 }
 

@@ -13,6 +13,8 @@ pub struct AgentConfig {
     pub systemd_dir: PathBuf,
     pub ssl_storage_dir: PathBuf,
     pub proxy_conf_dir: PathBuf,
+    pub node_image: String,
+    pub postgres_image: String,
 }
 
 impl AgentConfig {
@@ -32,6 +34,8 @@ impl AgentConfig {
             .expect("🚨 SECURITY FATAL: KARI_API_GID must be a valid numeric Group ID");
 
         Self {
+            node_image: env::var("KARI_NODE_IMAGE").unwrap_or_default(),
+            postgres_image: env::var("KARI_POSTGRES_IMAGE").unwrap_or_default(),
             socket_path: PathBuf::from(
                 env::var("KARI_SOCKET_PATH")
                     .unwrap_or_else(|_| "/var/run/kari/agent.sock".to_string()),

@@ -154,6 +154,86 @@ impl KariAgentService {
 impl SystemAgent for KariAgentService {
     type StreamDeploymentStream = ReceiverStream<Result<LogChunk, Status>>;
 
+    async fn deploy_node_site(
+        &self,
+        request: Request<kari_agent::StaticSiteRequest>,
+    ) -> Result<Response<AgentResponse>, Status> {
+        let _guard = self.hosting_lock.lock().await;
+        let stdout = crate::sys::workloads::deploy_node(&self.config, request.into_inner())
+            .await
+            .map_err(Status::failed_precondition)?;
+        Ok(Response::new(AgentResponse {
+            success: true,
+            stdout,
+            ..Default::default()
+        }))
+    }
+
+    async fn site_runtime(
+        &self,
+        request: Request<kari_agent::RuntimeRequest>,
+    ) -> Result<Response<kari_agent::RuntimeStatus>, Status> {
+        let _guard = self.hosting_lock.lock().await;
+        crate::sys::workloads::runtime(&self.config, request.into_inner())
+            .await
+            .map(Response::new)
+            .map_err(Status::failed_precondition)
+    }
+
+    async fn site_database(
+        &self,
+        request: Request<kari_agent::DatabaseRequest>,
+    ) -> Result<Response<kari_agent::DatabaseStatus>, Status> {
+        let _guard = self.hosting_lock.lock().await;
+        crate::sys::workloads::database(&self.config, request.into_inner())
+            .await
+            .map(Response::new)
+            .map_err(Status::failed_precondition)
+    }
+
+    async fn site_files(
+        &self,
+        request: Request<kari_agent::FileRequest>,
+    ) -> Result<Response<kari_agent::FileResult>, Status> {
+        let _guard = self.hosting_lock.lock().await;
+        crate::sys::site_files::files(&self.config, request.into_inner())
+            .map(Response::new)
+            .map_err(Status::failed_precondition)
+    }
+
+    async fn site_sftp(
+        &self,
+        request: Request<kari_agent::SftpRequest>,
+    ) -> Result<Response<kari_agent::SftpStatus>, Status> {
+        let _guard = self.hosting_lock.lock().await;
+        crate::sys::workloads::sftp(&self.config, request.into_inner())
+            .await
+            .map(Response::new)
+            .map_err(Status::failed_precondition)
+    }
+
+    async fn site_backups(
+        &self,
+        request: Request<kari_agent::BackupRequest>,
+    ) -> Result<Response<kari_agent::BackupResult>, Status> {
+        let _guard = self.hosting_lock.lock().await;
+        crate::sys::site_backups::backups(&self.config, request.into_inner())
+            .await
+            .map(Response::new)
+            .map_err(Status::failed_precondition)
+    }
+
+    async fn host_services(
+        &self,
+        request: Request<kari_agent::HostServiceRequest>,
+    ) -> Result<Response<kari_agent::HostServiceStatus>, Status> {
+        let _guard = self.hosting_lock.lock().await;
+        crate::sys::workloads::host_services(request.into_inner())
+            .await
+            .map(Response::new)
+            .map_err(Status::failed_precondition)
+    }
+
     async fn deploy_static_site(
         &self,
         request: Request<kari_agent::StaticSiteRequest>,
@@ -230,6 +310,18 @@ impl SystemAgent for KariAgentService {
             memory_usage_mb,
             agent_version: env!("CARGO_PKG_VERSION").to_string(),
             uptime_seconds: uptime,
+            memory_total_bytes: sys.total_memory(),
+            memory_used_bytes: sys.used_memory(),
+            disk_total_bytes: sysinfo::Disks::new_with_refreshed_list()
+                .iter()
+                .filter(|disk| disk.mount_point() == std::path::Path::new("/"))
+                .map(|disk| disk.total_space())
+                .sum(),
+            disk_available_bytes: sysinfo::Disks::new_with_refreshed_list()
+                .iter()
+                .filter(|disk| disk.mount_point() == std::path::Path::new("/"))
+                .map(|disk| disk.available_space())
+                .sum(),
         }))
     }
 

@@ -11,6 +11,13 @@ option go_package = "github.com/irgordon/kari/api/internal/grpc/rustagent;rustag
 // ==============================================================================
 
 service SystemAgent {
+  rpc DeployNodeSite(StaticSiteRequest) returns (AgentResponse);
+  rpc SiteRuntime(RuntimeRequest) returns (RuntimeStatus);
+  rpc SiteDatabase(DatabaseRequest) returns (DatabaseStatus);
+  rpc SiteFiles(FileRequest) returns (FileResult);
+  rpc SiteSFTP(SFTPRequest) returns (SFTPStatus);
+  rpc SiteBackups(BackupRequest) returns (BackupResult);
+  rpc HostServices(HostServiceRequest) returns (HostServiceStatus);
   rpc DeployStaticSite(StaticSiteRequest) returns (AgentResponse);
   rpc SetSiteChallenge(SiteChallenge) returns (AgentResponse);
   rpc ActivateSiteTLS(SiteCertificate) returns (AgentResponse);
@@ -46,6 +53,21 @@ message StaticSiteRequest {
   string deployment_id = 5;
 }
 
+message RuntimeRequest { string site_id = 1; string domain_name = 2; string action = 3; map<string,string> env_vars = 4; }
+message RuntimeStatus { bool running = 1; string logs = 2; }
+message DatabaseRequest { string site_id = 1; string domain_name = 2; string action = 3; string password = 4; }
+message DatabaseStatus { bool exists = 1; string host = 2; string database = 3; string username = 4; }
+message FileRequest { string site_id = 1; string domain_name = 2; string action = 3; string path = 4; bytes content = 5; }
+message FileEntry { string name = 1; bool directory = 2; uint64 size = 3; }
+message FileResult { repeated FileEntry entries = 1; bytes content = 2; }
+message SFTPRequest { string site_id = 1; string domain_name = 2; string action = 3; string public_key = 4; }
+message SFTPStatus { bool enabled = 1; string username = 2; }
+message BackupRequest { string site_id = 1; string domain_name = 2; string action = 3; string backup_id = 4; }
+message BackupRecord { string id = 1; string created_at = 2; }
+message BackupResult { repeated BackupRecord backups = 1; string runtime = 2; bool database_exists = 3; string repository = 4; string branch = 5; bytes certificate_pem = 6; }
+message HostServiceRequest { string service = 1; string action = 2; }
+message HostServiceStatus { map<string,string> services = 1; }
+
 message SiteChallenge {
   string site_id = 1;
   string domain_name = 2;
@@ -74,6 +96,10 @@ message SystemStatus {
   float memory_usage_mb = 4;
   string agent_version = 5;
   uint64 uptime_seconds = 6;
+  uint64 memory_total_bytes = 7;
+  uint64 memory_used_bytes = 8;
+  uint64 disk_total_bytes = 9;
+  uint64 disk_available_bytes = 10;
 }
 
 message AgentResponse {
