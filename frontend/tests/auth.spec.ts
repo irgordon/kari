@@ -187,13 +187,20 @@ test.describe('email capability confirmation', () => {
 
   test('MFA enrollment and recovery protect password and magic-link sign-in', async ({ page }) => {
     const compose = fileURLToPath(new URL('../../scripts/compose.sh', import.meta.url))
+    // An earlier scenario deliberately exhausts the shared IP rate budget.
+    // Start this independent workflow with fresh API limiter state and the same real database.
+    execFileSync(compose, ['restart', 'api'], { stdio: ['ignore', 'ignore', 'pipe'] })
+    const api = execFileSync(compose, ['ps', '-q', 'api'], { encoding: 'utf8' }).trim()
+    await expect.poll(() => execFileSync('docker', ['inspect', '--format', '{{.State.Health.Status}}', api], { encoding: 'utf8' }).trim(), { timeout: 30_000 }).toBe('healthy')
     const container = execFileSync(compose, ['ps', '-q', 'db'], { encoding: 'utf8' }).trim()
     const sql = (input: string) => execFileSync('docker', ['exec', '-i', container, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'kari', '-d', 'kari'], { input, stdio: ['pipe', 'ignore', 'pipe'] })
     sql(`UPDATE users SET password_hash=crypt('${password}', gen_salt('bf')), credential_version=credential_version+1, email_verified_at=NOW() WHERE email='${email}';`)
     await signIn(page)
     await page.goto('/account')
     await page.getByLabel('Current password').fill(password)
+    const enrollment = page.waitForResponse(response => response.url().endsWith('/auth/mfa/begin'))
     await page.getByRole('button', { name: 'Set up MFA', exact: true }).click()
+    expect((await enrollment).status()).toBe(200)
     const secret = await page.locator('code').first().innerText()
     // Independent RFC 6238 fixture calculation; production uses the pinned OTP library.
     let bits = ''
