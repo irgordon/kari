@@ -3,6 +3,7 @@
 pub mod build; // Build orchestration
 pub mod firewall; // Network policy enforcement
 pub mod git; // Source control
+pub mod hosting;
 pub mod jail; // User namespacing
 pub mod proxy; // Ingress (Nginx/Apache)
 pub mod scheduler; // Cron/Timer scheduling

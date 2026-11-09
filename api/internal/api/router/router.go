@@ -32,6 +32,7 @@ type RouterConfig struct {
 	SetupHandler   *handlers.SetupHandler
 	AuthMiddleware *auth_middleware.AuthMiddleware
 	DeployHandler  *handlers.DeploymentHandler
+	SiteHandler    *handlers.SiteHandler
 	ReadinessCheck func(context.Context) error
 	Logger         *slog.Logger
 }
@@ -47,7 +48,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	r.Use(middleware.RequestID)
 	r.Use(auth_middleware.StructuredLogger(cfg.Logger))
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(middleware.Timeout(3 * time.Minute))
 
 	// 🛡️ Limit all incoming JSON requests to 1 Megabyte max (OOM Protection)
 	r.Use(auth_middleware.MaxBytes(1_048_576))
@@ -174,6 +175,15 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 					next.ServeHTTP(w, req)
 				})
 			})
+
+			if cfg.SiteHandler != nil {
+				r.Route("/sites", func(r chi.Router) {
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).Get("/", cfg.SiteHandler.ServeHTTP)
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "write"), cfg.AuthMiddleware.RequirePermission("domains", "write")).Post("/", cfg.SiteHandler.ServeHTTP)
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "read")).Get("/{site}/deployments/{deployment}", cfg.SiteHandler.ServeHTTP)
+					r.With(cfg.AuthMiddleware.RequirePermission("applications", "deploy"), cfg.AuthMiddleware.RequirePermission("domains", "write")).Post("/{site}/{operation:deploy|tls}", cfg.SiteHandler.ServeHTTP)
+				})
+			}
 
 			if cfg.DomainHandler != nil {
 				r.Route("/domains", func(r chi.Router) {

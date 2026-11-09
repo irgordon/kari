@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/irgordon/kari/api/internal/adapters"
 	"github.com/irgordon/kari/api/internal/api/handlers"
 	"github.com/irgordon/kari/api/internal/api/middleware"
 	"github.com/irgordon/kari/api/internal/api/router"
@@ -135,6 +136,12 @@ func main() {
 	authHandler.MFA = &services.MFAService{Repo: userRepo, Auth: authService, Crypto: cryptoService}
 	emailHandler := &handlers.EmailAccessHandler{Service: emailAccess, Auth: authHandler}
 	deployHandler := handlers.NewDeploymentHandler(deployRepo, cryptoService, telemetryHub)
+	sites := &services.Sites{DB: dbPool, Agent: agentClient, ACME: adapters.NewAcmeProvider(cfg, agentClient, logger), PanelURL: cfg.PublicURL}
+	if err := sites.RecoverInterrupted(context.Background()); err != nil {
+		logger.Error("FATAL: Cannot recover interrupted site operations", "error", err)
+		os.Exit(1)
+	}
+	siteHandler := &handlers.SiteHandler{Service: sites}
 
 	authMiddleware := middleware.NewAuthMiddleware(authService, roleService, userRepo, logger)
 
@@ -144,7 +151,7 @@ func main() {
 	go emailAccess.Run(workerCtx)
 
 	// 🛡️ Deployment Worker: Claims tasks and orchestrates gRPC -> SSE
-	deployWorker := worker.NewDeploymentWorker(deployRepo, cryptoService, agentClient, telemetryHub, logger)
+	deployWorker := worker.NewDeploymentWorker(deployRepo, agentClient, telemetryHub, logger)
 	go deployWorker.Start(workerCtx)
 
 	// 🩺 Health Prober: Background Muscle heartbeat (every 15s)
@@ -169,6 +176,7 @@ func main() {
 		AuthHandler:    authHandler,
 		EmailHandler:   emailHandler,
 		DeployHandler:  deployHandler,
+		SiteHandler:    siteHandler,
 		SetupHandler:   setupHandler,
 		AuthMiddleware: authMiddleware,
 		ReadinessCheck: newReadinessCheck(dbPool, healthProber, cfg.RequireAgent),
@@ -179,7 +187,7 @@ func main() {
 		Addr:         ":" + cfg.Port,
 		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 4 * time.Minute,
 	}
 
 	// --- 7. Graceful Exit ---

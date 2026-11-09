@@ -1,4 +1,3 @@
-// api/internal/adapters/acme_provider.go
 package adapters
 
 import (
@@ -7,24 +6,19 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"fmt"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"log/slog"
-	"strings"
+	"net/http"
 	"time"
 
 	"github.com/go-acme/lego/v4/certificate"
-	"github.com/go-acme/lego/v4/challenge/http01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
-
 	"github.com/irgordon/kari/api/internal/config"
-	// Assuming the generated protobuf package is aliased as pb
 	pb "github.com/irgordon/kari/api/internal/grpc/rustagent"
 )
-
-// ==============================================================================
-// 1. Kari User Implementation (Required by Lego)
-// ==============================================================================
 
 type KariUser struct {
 	Email        string
@@ -36,62 +30,27 @@ func (u *KariUser) GetEmail() string                        { return u.Email }
 func (u *KariUser) GetRegistration() *registration.Resource { return u.Registration }
 func (u *KariUser) GetPrivateKey() crypto.PrivateKey        { return u.key }
 
-// ==============================================================================
-// 2. Custom gRPC Challenge Provider
-// ==============================================================================
-
 type KariChallengeProvider struct {
-	ctx         context.Context // Preserves cancellation SLA
+	ctx         context.Context
 	AgentClient pb.SystemAgentClient
-	WebRoot     string
-	WebUser     string // Injected dynamically
-	WebGroup    string // Injected dynamically
+	SiteID      string
 }
 
-func (p *KariChallengeProvider) Present(domain, token, keyAuth string) error {
-	// 🛡️ Zero-Trust Input Validation
-	if strings.Contains(token, "..") || strings.Contains(token, "/") {
-		return fmt.Errorf("SECURITY VIOLATION: Invalid ACME token format")
-	}
-
-	path := http01.ChallengePath(token)
-	fullPath := fmt.Sprintf("%s/%s", p.WebRoot, path)
-
-	// Pass the parent context with a hard timeout to prevent hanging the Muscle
-	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
+func (p *KariChallengeProvider) Present(domain, token, key string) error {
+	return p.change(domain, token, key, false)
+}
+func (p *KariChallengeProvider) CleanUp(domain, token, key string) error {
+	return p.change(domain, token, key, true)
+}
+func (p *KariChallengeProvider) change(domain, token, key string, remove bool) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ctx), 10*time.Second)
 	defer cancel()
-
-	_, err := p.AgentClient.WriteSystemFile(ctx, &pb.FileWriteRequest{
-		AbsolutePath: fullPath,
-		Content:      []byte(keyAuth),
-		Owner:        p.WebUser,
-		Group:        p.WebGroup,
-		FileMode:     "0644",
-	})
+	response, err := p.AgentClient.SetSiteChallenge(ctx, &pb.SiteChallenge{SiteId: p.SiteID, DomainName: domain, Token: token, KeyAuthorization: key, Remove: remove})
+	if err == nil && !response.Success {
+		return errors.New("agent rejected ACME challenge")
+	}
 	return err
 }
-
-func (p *KariChallengeProvider) CleanUp(domain, token, keyAuth string) error {
-	if strings.Contains(token, "..") || strings.Contains(token, "/") {
-		return fmt.Errorf("SECURITY VIOLATION: Invalid ACME token format")
-	}
-
-	path := http01.ChallengePath(token)
-	fullPath := fmt.Sprintf("%s/%s", p.WebRoot, path)
-
-	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
-	defer cancel()
-
-	_, err := p.AgentClient.ExecutePackageCommand(ctx, &pb.PackageRequest{
-		Command: "rm",
-		Args:    []string{"-f", fullPath},
-	})
-	return err
-}
-
-// ==============================================================================
-// 3. The ACME Adapter Implementation
-// ==============================================================================
 
 type AcmeProvider struct {
 	Config      *config.Config
@@ -100,85 +59,56 @@ type AcmeProvider struct {
 }
 
 func NewAcmeProvider(cfg *config.Config, agent pb.SystemAgentClient, logger *slog.Logger) *AcmeProvider {
-	return &AcmeProvider{
-		Config:      cfg,
-		AgentClient: agent,
-		Logger:      logger,
-	}
+	return &AcmeProvider{cfg, agent, logger}
 }
 
-func (p *AcmeProvider) ProvisionCertificate(ctx context.Context, email, domainName string) (*certificate.Resource, error) {
-	p.Logger.Info("Starting ACME certificate provision", slog.String("domain", domainName))
+// Requests carry the operation context even inside Lego's polling and HTTP calls.
+type acmeTransport struct{ ctx context.Context }
 
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+func (t acmeTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return http.DefaultTransport.RoundTrip(r.WithContext(t.ctx))
+}
+
+func (p *AcmeProvider) ProvisionSiteCertificate(ctx context.Context, site, email, hostname string) (time.Time, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate account key: %w", err)
+		return time.Time{}, err
 	}
-
-	user := KariUser{
-		Email: email,
-		key:   privateKey,
-	}
-
-	legoCfg := lego.NewConfig(&user)
-
-	// 🛡️ Environment Agnostic: URL injected via configuration
+	user := KariUser{Email: email, key: key}
+	cfg := lego.NewConfig(&user)
 	if p.Config.AcmeDirectoryUrl != "" {
-		legoCfg.CADirURL = p.Config.AcmeDirectoryUrl
+		cfg.CADirURL = p.Config.AcmeDirectoryUrl
 	}
-
-	client, err := lego.NewClient(legoCfg)
+	cfg.HTTPClient = &http.Client{Timeout: 20 * time.Second, Transport: acmeTransport{ctx}}
+	cfg.Certificate.Timeout = 90 * time.Second
+	client, err := lego.NewClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create lego client: %w", err)
+		return time.Time{}, err
 	}
-
-	// 🛡️ Platform Agnostic: Injected User/Group and WebRoot
-	provider := &KariChallengeProvider{
-		ctx:         ctx,
-		AgentClient: p.AgentClient,
-		WebRoot:     p.Config.WebRoot,
-		WebUser:     p.Config.WebUser,
-		WebGroup:    p.Config.WebGroup,
+	provider := &KariChallengeProvider{ctx: ctx, AgentClient: p.AgentClient, SiteID: site}
+	if err = client.Challenge.SetHTTP01Provider(provider); err != nil {
+		return time.Time{}, err
 	}
-
-	err = client.Challenge.SetHTTP01Provider(provider)
+	user.Registration, err = client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
 	if err != nil {
-		return nil, fmt.Errorf("failed to set http01 provider: %w", err)
+		return time.Time{}, err
 	}
-
-	reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+	cert, err := client.Certificate.Obtain(certificate.ObtainRequest{Domains: []string{hostname}, Bundle: true})
 	if err != nil {
-		return nil, fmt.Errorf("failed to register ACME account: %w", err)
+		return time.Time{}, err
 	}
-	user.Registration = reg
-
-	request := certificate.ObtainRequest{
-		Domains: []string{domainName},
-		Bundle:  true,
+	defer clear(cert.PrivateKey)
+	block, _ := pem.Decode(cert.Certificate)
+	if block == nil {
+		return time.Time{}, errors.New("ACME returned invalid PEM")
 	}
-
-	certificates, err := client.Certificate.Obtain(request)
+	leaf, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to obtain certificate for %s: %w", domainName, err)
+		return time.Time{}, err
 	}
-
-	_, err = p.AgentClient.InstallCertificate(ctx, &pb.SslPayload{
-		DomainName:   domainName,
-		FullchainPem: certificates.Certificate,
-		PrivkeyPem:   certificates.PrivateKey,
-	})
-
-	// 🛡️ Memory Safety: Best-Effort Plaintext Zeroing in Go
-	// We physically overwrite the byte array with zeros so it is destroyed
-	// before the Garbage Collector even runs.
-	for i := range certificates.PrivateKey {
-		certificates.PrivateKey[i] = 0
+	response, err := p.AgentClient.ActivateSiteTLS(ctx, &pb.SiteCertificate{SiteId: site, DomainName: hostname, FullchainPem: cert.Certificate, PrivkeyPem: cert.PrivateKey})
+	if err == nil && !response.Success {
+		err = errors.New("agent rejected TLS activation")
 	}
-
-	if err != nil {
-		return nil, fmt.Errorf("agent failed to install certificate: %w", err)
-	}
-
-	p.Logger.Info("✅ SSL Certificate successfully provisioned and installed", slog.String("domain", domainName))
-	return certificates, nil
+	return leaf.NotAfter, err
 }

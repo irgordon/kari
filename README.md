@@ -103,10 +103,24 @@ Liveness is `GET /health`. Dependency readiness is `GET /ready`. Production must
 set `KARI_REQUIRE_AGENT=true`, causing readiness to require a successful native
 agent probe in addition to PostgreSQL.
 
+## Website hosting
+
+On a native-agent installation, open **Websites** to create a static site from a
+public HTTPS Git repository and publish its prepared `index.html` and assets.
+Point the domain to the server, then configure TLS through ACME or a supplied
+certificate/key pair. Publication results survive page reloads; the dashboard
+reports saved hosting state rather than invented server metrics.
+
+See [website operations](docs/OPERATIONS.md#static-websites) and the
+[P2 implementation summary](docs/P2_IMPLEMENTATION_SUMMARY.md) for supported
+inputs, validation, and remaining P2 work. Arbitrary builds, application runtimes,
+customer databases, files/SFTP, and workload backup/restore are not provided by
+this first P2 increment.
+
 ## Production boundary
 
 The supported host is a dedicated Ubuntu 24.04 server with rootful Docker,
-Compose, Nginx, systemd, and UID/GID 1001 available. Provide a valid TLS certificate
+Compose, Nginx, Git, OpenSSL, systemd, and UID/GID 1001 available. Provide a valid TLS certificate
 and root-owned mode-0600 private key for the panel hostname. The installer creates
 private credentials, installs the native agent and panel services, binds internal
 HTTP ports to loopback, and configures the HTTPS proxy.

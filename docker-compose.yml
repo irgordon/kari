@@ -50,6 +50,7 @@ services:
       KARI_SETUP_TOKEN: ${KARI_SETUP_TOKEN:-}
       KARI_VERSION: ${KARI_VERSION:-development}
       KARI_PUBLIC_URL: ${KARI_PUBLIC_URL:-}
+      ACME_DIRECTORY_URL: ${ACME_DIRECTORY_URL:-https://acme-v02.api.letsencrypt.org/directory}
       KARI_SMTP_HOST: ${KARI_SMTP_HOST:-}
       KARI_SMTP_PORT: ${KARI_SMTP_PORT:-587}
       KARI_SMTP_USERNAME: ${KARI_SMTP_USERNAME:-}

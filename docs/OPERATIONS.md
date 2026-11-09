@@ -147,10 +147,66 @@ unexpired links remain redeemable if new email delivery is disabled.
 Confirm actual inbox delivery with your SMTP provider before relying on email
 recovery. Email links are a first factor, not MFA.
 
+## Static websites
+
+The first P2 hosting path supports prepared static websites from public HTTPS Git
+repositories. It requires the native agent and host Nginx; the container-only
+development smoke environment does not provide host publication. Use one API
+instance and one native agent on the supported Ubuntu server.
+
+1. Sign in, complete required MFA, and open **Websites**.
+2. Enter the website hostname, public HTTPS repository URL, and branch. The panel
+   hostname is reserved. Credentials in repository URLs are rejected.
+3. Put the finished `index.html` and public assets in the repository root, then
+   select **Publish latest branch**. No build commands, package installation,
+   submodules, private Git credentials, or runtime processes are supported here.
+4. Point the hostname's A/AAAA records to this server. Remove conflicting AAAA
+   records. Confirm the public HTTP website before requesting TLS.
+5. Select **Configure TLS**. Leave both PEM fields empty for ACME, explicitly
+   accept the subscriber agreement, and use an account with a verified email.
+   Inbound ports 80 and 443 must reach host Nginx. Alternatively supply a valid,
+   hostname-matching PEM chain and matching key. Imported certificates must be
+   trusted by your visitors; accepting a self-signed test certificate does not
+   establish public trust.
+
+All nonhidden repository files are public. Never commit credentials or private
+configuration to the published repository. Hidden files are excluded, visible
+symlinks and special files are rejected, and publication is limited to 10,000
+entries and 100 MiB. Fetching runs as a separate site identity under a bounded
+systemd service, with hooks disabled and without executing repository code.
+This narrow path does not certify the older general-purpose agent RPC surface.
+
+Publication continues when a browser closes. **View latest publication** restores
+its persisted result and bounded recent log history. Failed fetches leave the
+previous release active. A panel restart before acknowledgement is reported as
+an interrupted failure; inspect the website and explicitly publish again. A
+failed acknowledgement is not proof that no host change occurred.
+
+Nginx configuration is tested before reload, and TLS success waits until the
+expected certificate is served locally. Failed candidate activation retains the
+previous configuration. Certificates and releases remain in the root-managed
+site directory under `/var/www/kari/sites/`; monitor disk use. Automatic retention
+and certificate renewal are not implemented. Use **Configure TLS** again to renew
+before expiry. The dashboard warns when saved expiry is within 30 days, but it is
+not a live availability, DNS, resource, or certificate-monitoring service.
+
+The API uses owner-scoped `/api/v1/sites` operations and application/domain
+permissions. Deprecated domain/deployment pages redirect to Websites; their old
+unwired HTTP paths are not promoted into supported APIs. ACME uses the existing
+pinned Lego dependency and optional operator `ACME_DIRECTORY_URL`; the default is
+the Let's Encrypt production directory. No public certificate issuance was
+performed in the disposable local rehearsal.
+
+Application runtimes, customer database provisioning, file/SFTP access, manual
+workload backup/restore, broader server operations, and live dashboard telemetry
+remain P2 work. Control-plane backups do not include website files or certificates
+in these new site directories. Do not treat this increment as a complete P2 or
+production-hosting release.
+
 ## Supported installation
 
 Use Ubuntu 24.04 on a dedicated server with rootful Docker Engine 24+, Compose
-2.20+, Nginx, systemd, and free UID/GID 1001. Install those OS prerequisites first.
+2.20+, Nginx, Git, OpenSSL, systemd, and free UID/GID 1001. Install those OS prerequisites first.
 The installer refuses another distribution, an existing installation, occupied
 service identities, or pre-existing service/configuration files.
 

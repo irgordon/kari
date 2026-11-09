@@ -11,6 +11,9 @@ option go_package = "github.com/irgordon/kari/api/internal/grpc/rustagent;rustag
 // ==============================================================================
 
 service SystemAgent {
+  rpc DeployStaticSite(StaticSiteRequest) returns (AgentResponse);
+  rpc SetSiteChallenge(SiteChallenge) returns (AgentResponse);
+  rpc ActivateSiteTLS(SiteCertificate) returns (AgentResponse);
   // 🛡️ SLA: Heartbeat & Resource Monitoring for the Brain's Prober
   rpc GetSystemStatus (Empty) returns (SystemStatus);
 
@@ -33,6 +36,29 @@ service SystemAgent {
   // 🛡️ Abstract Policy Intent
   rpc ApplyFirewallPolicy(FirewallPolicy) returns (AgentResponse);
   rpc ScheduleJob(JobIntent) returns (AgentResponse);
+}
+
+message StaticSiteRequest {
+  string site_id = 1;
+  string domain_name = 2;
+  string repo_url = 3;
+  string branch = 4;
+  string deployment_id = 5;
+}
+
+message SiteChallenge {
+  string site_id = 1;
+  string domain_name = 2;
+  string token = 3;
+  string key_authorization = 4;
+  bool remove = 5;
+}
+
+message SiteCertificate {
+  string site_id = 1;
+  string domain_name = 2;
+  bytes fullchain_pem = 3;
+  bytes privkey_pem = 4;
 }
 
 // ==============================================================================

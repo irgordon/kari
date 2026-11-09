@@ -71,12 +71,30 @@ func (r *PostgresDeploymentRepository) AppendLog(ctx context.Context, deployment
 
 // UpdateStatus 🛡️ State Machine Integrity
 func (r *PostgresDeploymentRepository) UpdateStatus(ctx context.Context, id string, status domain.Status) error {
-	query := `UPDATE deployments SET status = $1, updated_at = NOW() WHERE id = $2`
-	tag, err := r.db.Exec(ctx, query, status, id)
+	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	return requireAffectedRow(tag.RowsAffected())
+	defer tx.Rollback(ctx)
+	query := `UPDATE deployments SET status = $1, updated_at = NOW() WHERE id = $2`
+	tag, err := tx.Exec(ctx, query, status, id)
+	if err != nil {
+		return err
+	}
+	if err = requireAffectedRow(tag.RowsAffected()); err != nil {
+		return err
+	}
+	if status == domain.StatusSuccess || status == domain.StatusFailed {
+		_, err = tx.Exec(ctx, `UPDATE applications a SET status=CASE WHEN EXISTS(SELECT 1 FROM deployments p WHERE p.app_id=a.id AND p.status='success') THEN 'running' ELSE 'failed' END WHERE a.id=(SELECT app_id FROM deployments WHERE id=$1) AND a.app_type='static'`, id)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE domains d SET status=CASE WHEN a.status='running' THEN 'active' ELSE 'failed' END FROM applications a WHERE d.app_id=a.id AND a.id=(SELECT app_id FROM deployments WHERE id=$1) AND a.app_type='static'`, id)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *PostgresDeploymentRepository) Save(ctx context.Context, deployment *domain.Deployment) error {

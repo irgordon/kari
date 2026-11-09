@@ -42,6 +42,7 @@ const ALLOWED_PKG_COMMANDS: &[&str] = &["apt-get", "apt", "dnf", "yum", "zypper"
 // ==============================================================================
 
 pub struct KariAgentService {
+    hosting_lock: tokio::sync::Mutex<()>,
     config: AgentConfig,
     jail_mgr: Arc<dyn JailManager>,
     svc_mgr: Arc<dyn ServiceManager>,
@@ -63,6 +64,7 @@ impl KariAgentService {
         job_scheduler: Arc<dyn JobScheduler>,
     ) -> Self {
         Self {
+            hosting_lock: tokio::sync::Mutex::new(()),
             jail_mgr: Arc::new(LinuxJailManager),
             svc_mgr: Arc::new(LinuxSystemdManager::new(config.systemd_dir.clone())),
             git_mgr: Arc::new(SystemGitManager),
@@ -151,6 +153,49 @@ impl KariAgentService {
 #[tonic::async_trait]
 impl SystemAgent for KariAgentService {
     type StreamDeploymentStream = ReceiverStream<Result<LogChunk, Status>>;
+
+    async fn deploy_static_site(
+        &self,
+        request: Request<kari_agent::StaticSiteRequest>,
+    ) -> Result<Response<AgentResponse>, Status> {
+        // Serialize activation with certificate configuration and challenge writes.
+        let _guard = self.hosting_lock.lock().await;
+        let message = crate::sys::hosting::deploy(&self.config, request.into_inner())
+            .await
+            .map_err(Status::failed_precondition)?;
+        Ok(Response::new(AgentResponse {
+            success: true,
+            stdout: message,
+            ..Default::default()
+        }))
+    }
+
+    async fn set_site_challenge(
+        &self,
+        request: Request<kari_agent::SiteChallenge>,
+    ) -> Result<Response<AgentResponse>, Status> {
+        let _guard = self.hosting_lock.lock().await;
+        crate::sys::hosting::challenge(&self.config, request.into_inner())
+            .map_err(Status::failed_precondition)?;
+        Ok(Response::new(AgentResponse {
+            success: true,
+            ..Default::default()
+        }))
+    }
+
+    async fn activate_site_tls(
+        &self,
+        request: Request<kari_agent::SiteCertificate>,
+    ) -> Result<Response<AgentResponse>, Status> {
+        let _guard = self.hosting_lock.lock().await;
+        crate::sys::hosting::certificate(&self.config, request.into_inner())
+            .await
+            .map_err(Status::failed_precondition)?;
+        Ok(Response::new(AgentResponse {
+            success: true,
+            ..Default::default()
+        }))
+    }
 
     // =========================================================================
     // 1. 🛡️ SLA: System Health Telemetry

@@ -118,6 +118,21 @@ the earlier design.
 
 ## 7. Network and Routing
 
+The supported first hosting workflow is prepared static content from public
+HTTPS Git. Owner-scoped site operations create the domain/application binding
+transactionally, queue publication, and expose persisted results. The native
+agent fetches under a dedicated unprivileged identity, publishes ordinary public
+files into root-managed releases, and activates host Nginx. No repository build
+commands or application runtime code execute in this path. General-purpose
+deployment RPCs and application runtimes remain outside this supported workflow.
+
+Site TLS supports ACME HTTP-01 or a supplied matching certificate and key. ACME
+challenge operations are bound to a site/domain and token rather than an
+arbitrary filesystem path. Activation validates Nginx, preserves the previous
+configuration on candidate failure, and waits for the expected served certificate.
+Renewal is manual. Dashboard values describe persisted hosting state, not live
+uptime or resource measurements. This is the first P2 increment, not full P2.
+
 The frontend Nginx container serves static assets and proxies `/api/` to the Go
 API. Host application proxy configuration is a separate privileged operation.
 Validate hostnames and generated configuration before activation, preserve valid

@@ -350,7 +350,7 @@ func (h Host) Install(ctx context.Context, bundle, expected, publicURL, cert, ke
 	if _, err = os.Lstat(h.Root); !os.IsNotExist(err) {
 		return errors.New("installation root already exists; use upgrade")
 	}
-	for _, binary := range []string{"docker", "nginx", "systemctl", "getent", "groupadd", "useradd"} {
+	for _, binary := range []string{"docker", "nginx", "systemctl", "getent", "groupadd", "useradd", "git", "openssl", "systemd-run"} {
 		if _, err = exec.LookPath(binary); err != nil {
 			return fmt.Errorf("missing prerequisite %s", binary)
 		}
@@ -453,7 +453,7 @@ func (h Host) Install(ctx context.Context, bundle, expected, publicURL, cert, ke
 	if strings.ContainsAny(u.Hostname(), "\r\n {};\\\"") {
 		return errors.New("invalid hostname")
 	}
-	nginx := fmt.Sprintf("server { listen 443 ssl; server_name %s; ssl_certificate %s/tls/panel.crt; ssl_certificate_key %s/tls/panel.key; location / { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $http_host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-Proto https; } }\n", u.Hostname(), h.Root, h.Root)
+	nginx := fmt.Sprintf("server { listen 443 ssl; server_name %s; ssl_certificate %s/tls/panel.crt; ssl_certificate_key %s/tls/panel.key; location / { proxy_pass http://127.0.0.1:3000; proxy_read_timeout 180s; proxy_set_header Host $http_host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-Proto https; } }\n", u.Hostname(), h.Root, h.Root)
 	if err = os.WriteFile("/etc/nginx/sites-available/kari-panel.conf", []byte(nginx), 0644); err != nil {
 		return err
 	}

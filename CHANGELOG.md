@@ -5,10 +5,12 @@ This project follows the Keep a Changelog format and adheres to Semantic Version
 
 ## [Unreleased]
 ### Added
+- Static website publication from public Git repositories, owned domain records, ACME or supplied TLS certificates, and persistent publication results.
 - Verified email recovery and authenticator MFA with single-use recovery codes for password and magic-link login.
 - Private first-run setup keys, onboarding checks, and local administrator recovery.
 - Ubuntu 24.04 installation, checksummed release bundles, guarded upgrades, and matching control-plane backup/restore.
 ### Changed
+- Hosting overview uses saved site/certificate state; failed publications preserve the existing site, and TLS activation waits for the expected certificate.
 - Production management requires MFA; incompatible database versions and unsupported downgrades are rejected.
 - Development instructions now live under `docs/`; detailed P1 implementation notes are separate from this changelog.
 
